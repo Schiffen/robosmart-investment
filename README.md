@@ -3,10 +3,10 @@ title: RoboSmart Investment
 emoji: 📈
 colorFrom: blue
 colorTo: indigo
-sdk: streamlit
-sdk_version: 1.60.0
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: false
+short_description: AI-assisted portfolio analysis — dashboard, Bull vs Bear LLM debate, and OLS factor attribution.
 ---
 
 # RoboSmart Investment 📈

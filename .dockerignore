@@ -1,0 +1,27 @@
+# Keep the Space image small and the build fast. The app needs none of this.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.github/
+
+# Secrets never belong in a build context. .env is gitignored so it should not
+# be here at all — this is belt and braces.
+.env
+.env.Local
+.streamlit/secrets.toml
+
+# Development-only artefacts.
+_preview_app.py
+tests/
+docs/*.png
+docs/*.pdf
+docs/summary_document_long.md
+mock_context.json
+
+# Local noise
+*.log
+preview_*.png
+.DS_Store
