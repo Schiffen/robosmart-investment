@@ -2,7 +2,7 @@
 
 An AI‑assisted portfolio analysis app: upload your stock portfolio (CSV) and get three tools — a **Portfolio Dashboard**, a **Bull vs Bear** multi‑agent debate, and an **OLS factor‑model** breakdown of a stock's daily move.
 
-**Live app:** _<add the Streamlit Community Cloud URL here>_
+**Live app:** <https://robosmart-investment-proj.streamlit.app/>
 
 **Source:** <https://github.com/Schiffen/robosmart-investment>
 
