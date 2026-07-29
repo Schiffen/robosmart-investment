@@ -172,6 +172,20 @@ def validate(contexts: dict, histories: dict) -> tuple[list, list]:
 # --------------------------------------------------------------------------
 
 def demo_book_tickers() -> list:
+    """Every symbol used by any sample investor profile.
+
+    Sourced from `profiles.all_tickers()` rather than a hardcoded list, so
+    adding a holding to a profile automatically brings it into the offline
+    fixture on the next refresh. Falls back to the original demo book if the
+    profiles package is unavailable.
+    """
+    try:
+        import profiles
+        tickers = profiles.all_tickers()
+        if tickers:
+            return tickers
+    except Exception as e:  # noqa: BLE001 — never block a refresh on this
+        print(f"  (profiles unavailable: {e}; falling back to mock_portfolio.json)")
     with open(PORTFOLIO_PATH, encoding="utf-8") as fh:
         portfolio = json.load(fh)
     return [p["ticker"] for p in portfolio.get("positions", [])]

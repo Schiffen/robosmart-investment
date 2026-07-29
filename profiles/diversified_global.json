@@ -1,0 +1,54 @@
+{
+  "id": "diversified_global",
+  "name": "Diversified global",
+  "emoji": "\ud83c\udf0d",
+  "tagline": "Broad equity, ex-US, bonds, gold and property. Textbook allocation.",
+  "expect": "Lowest volatility of any profile, spread across five asset classes \u2014 yet average correlation is still +0.39, because three of the six sleeves are equity funds. Asset-class labels do not guarantee diversification.",
+  "portfolio": {
+    "positions": [
+      {
+        "ticker": "VTI",
+        "shares": 32,
+        "cost_basis": 300.0,
+        "sector": "US Equity"
+      },
+      {
+        "ticker": "VXUS",
+        "shares": 140,
+        "cost_basis": 70.0,
+        "sector": "International Equity"
+      },
+      {
+        "ticker": "BND",
+        "shares": 162,
+        "cost_basis": 72.0,
+        "sector": "Fixed Income"
+      },
+      {
+        "ticker": "GLD",
+        "shares": 31,
+        "cost_basis": 300.0,
+        "sector": "Commodities"
+      },
+      {
+        "ticker": "VNQ",
+        "shares": 116,
+        "cost_basis": 90.0,
+        "sector": "Real Estate"
+      },
+      {
+        "ticker": "TLT",
+        "shares": 139,
+        "cost_basis": 88.0,
+        "sector": "Fixed Income"
+      }
+    ],
+    "cash": 6000.0,
+    "currency": "USD"
+  },
+  "asserts": {
+    "warnings_exactly": 0,
+    "vol_max": 0.12,
+    "min_sectors": 5
+  }
+}

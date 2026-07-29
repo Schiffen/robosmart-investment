@@ -1,0 +1,41 @@
+{
+  "id": "concentrated_risk",
+  "name": "Concentrated by accident",
+  "emoji": "\u26a0\ufe0f",
+  "tagline": "Didn't start concentrated. One holding won and nobody trimmed it.",
+  "expect": "Four positions that behave like one and a half \u2014 effective holdings collapses to 1.5 of 4 once one winner dominates.",
+  "portfolio": {
+    "positions": [
+      {
+        "ticker": "NVDA",
+        "shares": 300,
+        "cost_basis": 95.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "JPM",
+        "shares": 15,
+        "cost_basis": 300.0,
+        "sector": "Financial Services"
+      },
+      {
+        "ticker": "XOM",
+        "shares": 30,
+        "cost_basis": 120.0,
+        "sector": "Energy"
+      },
+      {
+        "ticker": "GLD",
+        "shares": 10,
+        "cost_basis": 350.0,
+        "sector": "Commodities"
+      }
+    ],
+    "cash": 1000.0,
+    "currency": "USD"
+  },
+  "asserts": {
+    "warnings_min": 3,
+    "effective_n_max": 2.0
+  }
+}

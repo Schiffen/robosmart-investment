@@ -34,6 +34,63 @@ def test_debate_button_runs_on_mock(monkeypatch):
 
 
 # --------------------------------------------------------------------------
+# Sample investor profiles
+# --------------------------------------------------------------------------
+
+def test_app_opens_on_a_populated_dashboard(monkeypatch):
+    """A visitor must land on the tool working, not an upload prompt.
+
+    The deployed app previously opened empty on live data, because auto-load was
+    gated on fixture mode — so a grader's first five seconds were a file picker.
+    """
+    monkeypatch.chdir(BASE)
+    monkeypatch.setenv("USE_MOCK", "1")
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    assert not at.exception
+    assert len(at.metric) >= 8, "opened without a populated dashboard"
+    assert at.info, "no profile explainer shown"
+    assert "Balanced growth" in at.info[0].value
+
+
+def test_switching_profile_changes_the_verdict(monkeypatch):
+    """The point of five books is that one engine reaches five verdicts.
+
+    Balanced trips exactly one warning; the concentrated book trips three. If
+    these ever produced the same output the profiles would be decoration.
+    """
+    monkeypatch.chdir(BASE)
+    monkeypatch.setenv("USE_MOCK", "1")
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    assert len(at.warning) == 1, "balanced book should trip exactly one warning"
+
+    picker = [s for s in at.selectbox if "investor" in (s.label or "").lower()]
+    assert picker, "no sample-investor selector in the sidebar"
+    assert len(picker[0].options) >= 5
+
+    concentrated = next(o for o in picker[0].options if "Concentrated" in o)
+    picker[0].select(concentrated).run()
+    load = [b for b in at.button if "Load this investor" in (b.label or "")]
+    load[0].click().run()
+
+    assert not at.exception
+    assert len(at.error) == 0
+    assert len(at.warning) >= 3, "concentrated book should trip three guidelines"
+    assert "Concentrated" in at.info[0].value
+
+
+def test_clear_actually_clears(monkeypatch):
+    """Auto-load would otherwise repopulate instantly and Clear would look broken."""
+    monkeypatch.chdir(BASE)
+    monkeypatch.setenv("USE_MOCK", "1")
+    at = AppTest.from_file(APP, default_timeout=180).run()
+    clear = [b for b in at.button if (b.label or "").strip() == "Clear"]
+    assert clear, "no Clear button"
+    clear[0].click().run()
+    assert not at.exception
+    assert len(at.metric) == 0, "Clear left the dashboard populated"
+
+
+# --------------------------------------------------------------------------
 # Deployment: Streamlit-managed secrets
 # --------------------------------------------------------------------------
 

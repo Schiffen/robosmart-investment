@@ -15,8 +15,13 @@ from dotenv import load_dotenv
 import streamlit as st
 
 import data_layer
+import profiles
 import run_mode
-from portfolio import PortfolioError, parse_portfolio, sample_portfolio
+from portfolio import PortfolioError, parse_portfolio
+
+# The book the app opens on. Balanced rather than alarming: the first thing a
+# visitor sees should be the tool working, not a wall of red warnings.
+DEFAULT_PROFILE = "balanced_growth"
 
 # Local dev: read .env so ANTHROPIC_API_KEY / ANTHROPIC_MODEL / USE_MOCK are
 # picked up without needing to `export` them. No-op where the host injects real
@@ -69,30 +74,52 @@ def _load(portfolio: dict) -> None:
     ss.active_ticker = tickers[0] if tickers else None
 
 
-# Auto-load the demo when running on recorded data, so the app is never empty on
-# a fresh boot. MUST run before the sidebar: the holdings summary, the
-# active-ticker selectbox and Reset are all gated on `ss.portfolio` being set, so
-# loading afterwards left the first paint with a full dashboard and no way to
-# switch ticker.
-if ss.portfolio is None and run_mode.use_fixture_data():
-    _load(sample_portfolio())
+# Land on a populated dashboard rather than an empty one. Previously this only
+# happened on recorded data, so anyone opening the DEPLOYED app saw an upload
+# prompt and an empty tab — a poor first five seconds for a tool whose whole
+# point is what it computes. Reset still clears it.
+# MUST run before the sidebar: the holdings summary, the active-ticker selectbox
+# and Reset are all gated on `ss.portfolio` being set, so loading afterwards left
+# the first paint with a full dashboard and no way to switch ticker.
+if ss.portfolio is None and not ss.get("cleared"):
+    _load(profiles.load_portfolio(DEFAULT_PROFILE))
+    ss.loaded_profile = DEFAULT_PROFILE
 
 
 # ---- Sidebar -------------------------------------------------------------
 with st.sidebar:
     st.title("📈 RoboSmart")
-    st.caption("Upload your portfolio (CSV) or load the demo.")
+    st.caption("Explore a sample investor, or upload your own portfolio.")
 
-    up = st.file_uploader("Portfolio CSV", type=["csv"])
-    if up is not None:
-        try:
-            _load(parse_portfolio(up))
-            st.success("Portfolio loaded.")
-        except PortfolioError as e:
-            st.error(str(e))
+    # ---- Sample investor books ------------------------------------------
+    # One engine, five different verdicts. Each profile states what it should
+    # demonstrate, and tests/test_profiles.py enforces that claim against the
+    # numbers, so these captions cannot drift into being wrong.
+    catalogue = profiles.list_profiles()
+    by_label = {profiles.label(p): p for p in catalogue}
+    picked = st.selectbox("Sample investor", list(by_label),
+                          index=list(by_label).index(
+                              profiles.label(next(p for p in catalogue
+                                                  if p["id"] == DEFAULT_PROFILE))))
+    chosen = by_label[picked]
+    st.caption(chosen["tagline"])
+    if st.button("Load this investor", use_container_width=True, type="primary"):
+        _load(profiles.load_portfolio(chosen["id"]))
+        ss.pop("cleared", None)
+        ss.loaded_profile = chosen["id"]
+        st.rerun()
 
-    if st.button("Try demo portfolio"):
-        _load(sample_portfolio())
+    with st.expander("Upload your own CSV"):
+        st.caption("Columns: ticker, shares, cost_basis · optional sector · a CASH row sets cash.")
+        up = st.file_uploader("Portfolio CSV", type=["csv"], label_visibility="collapsed")
+        if up is not None:
+            try:
+                _load(parse_portfolio(up))
+                ss.pop("cleared", None)
+                ss.pop("loaded_profile", None)
+                st.success("Portfolio loaded.")
+            except PortfolioError as e:
+                st.error(str(e))
 
     if ss.portfolio:
         st.divider()
@@ -103,9 +130,13 @@ with st.sidebar:
         if tickers:
             idx = tickers.index(ss.active_ticker) if ss.active_ticker in tickers else 0
             ss.active_ticker = st.selectbox("Active ticker (tabs 2 & 3)", tickers, index=idx)
-        if st.button("Reset"):
+        if st.button("Clear"):
             ss.portfolio = None
             ss.active_ticker = None
+            ss.pop("loaded_profile", None)
+            # Sticky, or the auto-load above would immediately repopulate and
+            # "Clear" would look like it did nothing.
+            ss.cleared = True
             st.rerun()
 
     # State the resolved mode explicitly. Recorded data that looks live is the
@@ -117,6 +148,17 @@ with st.sidebar:
 # ---- Header --------------------------------------------------------------
 st.title("RoboSmart Investment")
 st.caption("Upload a stock portfolio and get an AI-assisted analysis across three tools.")
+
+# When a sample investor is loaded, say what it is meant to demonstrate. The
+# point of five books is that one engine reaches five different verdicts — and
+# that only lands if the reader knows what to look for. `expect` is enforced
+# against the real numbers by tests/test_profiles.py, so this is a checked claim
+# rather than marketing copy.
+if ss.get("loaded_profile"):
+    _meta = next((p for p in profiles.list_profiles()
+                  if p["id"] == ss.loaded_profile), None)
+    if _meta:
+        st.info(f"**{profiles.label(_meta)}** — {_meta['expect']}")
 
 from tabs.attribution import render as render_attribution
 from tabs.dashboard import render as render_dashboard

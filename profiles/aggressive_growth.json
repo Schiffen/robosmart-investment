@@ -1,0 +1,48 @@
+{
+  "id": "aggressive_growth",
+  "name": "Aggressive growth",
+  "emoji": "\ud83d\ude80",
+  "tagline": "Concentrated in high-beta technology. The book a 2023-2025 bull market builds.",
+  "expect": "Trips all three concentration guidelines at once: single position, sector, and top-3. Roughly triple the volatility of the income book.",
+  "portfolio": {
+    "positions": [
+      {
+        "ticker": "PLTR",
+        "shares": 140,
+        "cost_basis": 160.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "AMD",
+        "shares": 30,
+        "cost_basis": 200.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "TSLA",
+        "shares": 40,
+        "cost_basis": 380.0,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "NVDA",
+        "shares": 60,
+        "cost_basis": 150.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "MSFT",
+        "shares": 27,
+        "cost_basis": 460.0,
+        "sector": "Technology"
+      }
+    ],
+    "cash": 2500.0,
+    "currency": "USD"
+  },
+  "asserts": {
+    "warnings_exactly": 3,
+    "beta_min": 1.5,
+    "vol_min": 0.25
+  }
+}

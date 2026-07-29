@@ -1,0 +1,54 @@
+{
+  "id": "conservative_income",
+  "name": "Conservative income",
+  "emoji": "\ud83d\udee1\ufe0f",
+  "tagline": "Dividend payers and duration. Built to be dull on purpose.",
+  "expect": "Zero warnings, and a NEGATIVE beta \u2014 the bond sleeve makes it move against the market. Proof the engine doesn't just cry wolf.",
+  "portfolio": {
+    "positions": [
+      {
+        "ticker": "JNJ",
+        "shares": 38,
+        "cost_basis": 170.0,
+        "sector": "Healthcare"
+      },
+      {
+        "ticker": "KO",
+        "shares": 120,
+        "cost_basis": 62.0,
+        "sector": "Consumer Defensive"
+      },
+      {
+        "ticker": "PG",
+        "shares": 68,
+        "cost_basis": 155.0,
+        "sector": "Consumer Defensive"
+      },
+      {
+        "ticker": "TLT",
+        "shares": 120,
+        "cost_basis": 95.0,
+        "sector": "Fixed Income"
+      },
+      {
+        "ticker": "VZ",
+        "shares": 213,
+        "cost_basis": 40.0,
+        "sector": "Communication Services"
+      },
+      {
+        "ticker": "BND",
+        "shares": 139,
+        "cost_basis": 71.0,
+        "sector": "Fixed Income"
+      }
+    ],
+    "cash": 12000.0,
+    "currency": "USD"
+  },
+  "asserts": {
+    "warnings_exactly": 0,
+    "beta_max": 0.3,
+    "vol_max": 0.15
+  }
+}
