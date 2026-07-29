@@ -9,6 +9,8 @@ data AND recorded AI output, no network and no API key. USE_MOCK_DATA /
 USE_MOCK_LLM pin one axis without the other.
 """
 
+import os
+
 from dotenv import load_dotenv
 import streamlit as st
 
@@ -17,9 +19,42 @@ import run_mode
 from portfolio import PortfolioError, parse_portfolio, sample_portfolio
 
 # Local dev: read .env so ANTHROPIC_API_KEY / ANTHROPIC_MODEL / USE_MOCK are
-# picked up without needing to `export` them. No-op on Hugging Face, where the
-# Space injects secrets as real env vars. Runs before any module reads os.environ.
+# picked up without needing to `export` them. No-op where the host injects real
+# env vars. Runs before any module reads os.environ.
 load_dotenv()
+
+# Config keys this app understands, in the one place they are enumerated.
+_CONFIG_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_MODEL",
+                "USE_MOCK", "USE_MOCK_DATA", "USE_MOCK_LLM")
+
+
+def _adopt_streamlit_secrets() -> None:
+    """Copy Streamlit-managed secrets into the environment.
+
+    Streamlit Community Cloud exposes secrets through `st.secrets` and does NOT
+    set them as environment variables. Both `run_mode` and `agents/llm` read
+    `os.environ`, so without this the deployed app would find no API key and
+    quietly serve RECORDED debate output while looking completely healthy — the
+    worst kind of failure, because nothing errors.
+
+    An existing environment variable always wins, so a local `.env` still
+    overrides the deployed configuration.
+    """
+    try:
+        secrets = st.secrets
+    except Exception:  # noqa: BLE001 — no secrets configured; normal locally
+        return
+    for key in _CONFIG_KEYS:
+        try:
+            if key in secrets and not os.environ.get(key):
+                os.environ[key] = str(secrets[key])
+        except Exception:  # noqa: BLE001 — malformed entry must not kill boot
+            continue
+
+
+# MUST run before anything reads os.environ — the auto-load gate below and every
+# tab import resolve their mode from it.
+_adopt_streamlit_secrets()
 
 st.set_page_config(page_title="RoboSmart Investment", layout="wide", page_icon="📈")
 
