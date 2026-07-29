@@ -4,7 +4,7 @@ An AI‑assisted portfolio analysis app: upload your stock portfolio (CSV) and g
 
 **Live app:** _<add the Streamlit Community Cloud URL here>_
 
-**Source:** <https://github.com/roischiffen/robosmart-investment>
+**Source:** <https://github.com/Schiffen/robosmart-investment>
 
 > ⚠️ Educational university project. **Not investment advice.**
 
