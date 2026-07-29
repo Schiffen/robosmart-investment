@@ -99,12 +99,65 @@ theme.py                shared design tokens
 
 ## Current state
 
-133 tests passing offline, 10 live-parity, 16 model-groundedness. App verified end to end
-in all three modes against both live Yahoo and the fixture.
+**159 tests passing offline** (~7s), plus 10 live-parity (`--live`) and 16
+model-groundedness (`--llm`). Verified end to end in all three modes, locally and on the
+deployed app.
 
-**Known outstanding:** the `ANTHROPIC_API_KEY` in `.env` is unrotated (`DEPLOY.md` step 0);
-`.env` is gitignored, and the real key is not in git history. `statsmodels` is pinned but
-imported nowhere (~151 MB with scipy). `mock_context.json` (372 KB) is loaded by nothing at
-runtime. Not yet deployed — a React + FastAPI migration is under consideration, which would
-replace `app.py`/`tabs/`/`theme.py` (~1,220 lines) and move Hugging Face from the Streamlit
-SDK to the Docker SDK; the ~2,365 lines of analytics and all tests would carry over intact.
+- **Live:** https://robosmart-investment-proj.streamlit.app/
+- **Repo:** https://github.com/Schiffen/robosmart-investment (account `Schiffen`)
+
+### Deployment notes that contradict older docs
+
+Hugging Face **removed the Streamlit SDK** (`sdk` accepts only `gradio|docker|static`) and
+now requires a **PRO subscription** for Docker Spaces. Deployment moved to Streamlit
+Community Cloud. `DEPLOY.md` still describes the dead HF path and needs rewriting. A
+`Dockerfile` exists and works, but is currently unused.
+
+Streamlit Cloud exposes secrets via `st.secrets`, **not** env vars — `app.py`'s
+`_adopt_streamlit_secrets()` bridges them. Without it the deployed app silently serves
+recorded AI output while looking healthy. Two tests guard this.
+
+### Git identity — per repo, not global
+
+This repo commits as `Schiffen <schiffen@post.bgu.ac.il>` via `.git/config` and
+authenticates with `~/.ssh/id_ed25519_robosmart` pinned through `core.sshCommand`. The
+global config is a *different* account and must stay untouched. Never run
+`gh auth switch` for this project — it is global.
+
+### Open threads
+
+| Item | State |
+|---|---|
+| Delete old `roischiffen/robosmart-investment` | still public; needs `delete_repo` scope or the browser |
+| Rotate `ANTHROPIC_API_KEY` once more before submission | current key leaked into a session transcript (local only) |
+| Rewrite `docs/summary_document.pdf` | stale — predates the data layer, profiles and deployment. **20% of the grade** |
+| Record the 3–5 min demo video | script exists at `docs/video_script.md`; not recorded |
+| Submit the course survey | **5% of the grade**, free points |
+| Deadline | **still unknown — ask before planning large work** |
+
+### Grading reality (drives prioritisation)
+
+50% architecture and technical implementation · 20% AI creativity *beyond trivial use* ·
+20% documentation · 5% defense · 5% survey. **UI/design is not a graded line item** — it
+serves the defense and the "complete product" impression only.
+
+The AI layer is currently a **prompt chain, not an agent**: five sequential calls for the
+debate, one for the explainer, zero tools and zero loops. Adding a tool-using chat agent
+is the single change that targets the 20% criterion directly, and the course brief names
+exactly that as its worked example.
+
+### Design phase (in progress)
+
+`PRODUCT.md` is written (Impeccable `init`). Key recorded decisions: beginner-primary with
+evaluator-legible depth; **substance preserved, structure free to change**; positioning is
+**execution-led** — the user's stated differentiator is design, motion and frontend craft.
+
+That collides with the stack: Streamlit custom components render in isolated iframes and
+cannot call each other, so orchestrated motion is unreachable. `motion-framer` and
+`gsap-scrolltrigger` are React-only and cannot run against `tabs/*.py`. The React + FastAPI
+migration question is therefore open on the user's own terms, not merely as a preference —
+the ~2,365 lines of analytics and all tests would carry over intact.
+
+Impeccable's detector **does** work here (it reads CSS inside Python strings). Current
+open findings: `tabs/debate.py:44` and `:181` both use `border-left:3px solid`, flagged as
+the side-tab accent border — "the most recognizable tell of AI-generated UIs".
