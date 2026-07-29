@@ -1,0 +1,11 @@
+# Preview-only theme (app-level config belongs to Person 1). Dark base makes the
+# dataviz palette sit correctly. Recommend Person 1 adopt something similar.
+[theme]
+base = "dark"
+primaryColor = "#3987e5"
+backgroundColor = "#0d0d0d"
+secondaryBackgroundColor = "#1a1a19"
+textColor = "#ffffff"
+
+[server]
+headless = true

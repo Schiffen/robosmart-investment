@@ -1,0 +1,11 @@
+# Dependencies for Person 2's Dashboard slice (dev / local preview).
+# Person 1 owns the master requirements.txt for deployment — these versions
+# should be merged into it (pinned). The dashboard needs Streamlit >= 1.60
+# because it uses width="stretch" and pandas >= 2.1 (Styler.map, stack(future_stack)).
+streamlit>=1.60,<2
+pandas>=2.1
+numpy>=1.26
+plotly>=5.22
+statsmodels>=0.14
+yfinance>=0.2.40
+pytest>=8.0
