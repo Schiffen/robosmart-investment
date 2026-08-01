@@ -62,8 +62,11 @@ market_data/refresh.py    records the snapshot, validates before writing
 portfolio_metrics.py    pure portfolio math — NO streamlit import, ever
 factor_model.py         OLS market/sector/idiosyncratic decomposition — also pure
 agents/llm.py           shared Anthropic client (recorded-first)
-agents/debate.py        5-call Bull/Bear/Judge engine
+agents/debate.py        5-call Bull/Bear/Judge engine (on_stage reports real progress)
 agents/explainer.py     residual-only news explainer
+agents/tools.py         the analyst agent's 7 tools — thin wrappers over the tested
+                        analytics; NOTHING here computes finance
+agents/analyst.py       tool-using agent: manual tool-use loop, MAX_ITERATIONS bound
 prompts/*.txt           externalised system prompts — rules live HERE, not in code
 tabs/*.py               render only; all numbers come from the pure modules
 theme.py                shared design tokens
@@ -88,6 +91,15 @@ theme.py                shared design tokens
    makes the analytics layer portable to any frontend. Keep it that way.
 7. **Prompts own the rules.** Personas, citation requirements and the "no clear cause
    found" escape hatch live in `prompts/*.txt`, not in Python.
+8. **The analyst agent is given no portfolio data in its prompt.** Every figure it can
+   state has to come back from a tool call. Passing the book into the system prompt as a
+   convenience would destroy the one property that makes it trustworthy.
+9. **`simulate_trade` is pure and never mutates session state.** The agent models a
+   trade; only the user applies one. A test asserts the caller's portfolio is unchanged —
+   if it ever fails, "what if I sold everything?" sells everything.
+10. **All model output reaches the page through `theme.safe`/`safe_md`.** `safe` for raw
+   HTML we control (escapes quotes, emits `$` as `&#36;`), `safe_md` for markdown prose
+   (`quote=False` — escaping apostrophes breaks the entity and renders `&#x27;`).
 
 ## Working conventions
 
@@ -99,9 +111,22 @@ theme.py                shared design tokens
 
 ## Current state
 
-**159 tests passing offline** (~7s), plus 10 live-parity (`--live`) and 16
+**199 tests passing offline** (~5s), plus 10 live-parity (`--live`) and 16
 model-groundedness (`--llm`). Verified end to end in all three modes, locally and on the
 deployed app.
+
+The **analyst agent** (4th view, "Ask the analyst") is built and verified against the live
+API: it picks the right tool per question, calls tools in parallel when they're
+independent, refuses advice cleanly ("Should I buy more NVDA?" → zero tool calls, offers
+the legitimate alternative), and corrected a false premise rather than confabulating
+("why am I down?" → "your portfolio actually looks slightly up"). The UI shows every tool
+call behind a "How I worked this out" expander — that trace is what makes the grounding
+visible rather than merely claimed.
+
+**Numerical note:** `_aligned_portfolio_returns` wraps its matmul in `np.errstate`. Those
+"divide by zero in matmul" warnings were **stale FPU status flags** (matmul doesn't
+divide) surfaced by BLAS, not corruption — inputs and outputs verified finite. The
+`np.where(isfinite)` guard after it is the part that actually protects correctness.
 
 - **Live:** https://robosmart-investment-proj.streamlit.app/
 - **Repo:** https://github.com/Schiffen/robosmart-investment (account `Schiffen`)
@@ -158,6 +183,46 @@ cannot call each other, so orchestrated motion is unreachable. `motion-framer` a
 migration question is therefore open on the user's own terms, not merely as a preference —
 the ~2,365 lines of analytics and all tests would carry over intact.
 
-Impeccable's detector **does** work here (it reads CSS inside Python strings). Current
-open findings: `tabs/debate.py:44` and `:181` both use `border-left:3px solid`, flagged as
-the side-tab accent border — "the most recognizable tell of AI-generated UIs".
+Impeccable's detector **does** work here (it reads CSS inside Python strings). Both
+previously-open `border-left:3px solid` findings are closed.
+
+### Design pass — done, and what it settled
+
+A dual-agent critique scored the deployed app **19/40** on Nielsen's heuristics (archived
+under `.impeccable/critique/`). The fixes below are applied and verified in a live browser.
+The in-page detector went from 9 findings to 4, and all 4 remaining are Streamlit's own
+chrome (`.stApp` overflow, sidebar transition, dead maplibregl CSS) — zero app-owned.
+
+- **`theme.safe` / `theme.safe_md` is the model-output boundary.** A judge verdict with
+  `$5B … $5B` had the span between the dollar signs eaten by Streamlit's LaTeX parser and
+  painted as a code block mid-sentence; model text also flowed unescaped into
+  `unsafe_allow_html=True`. `tests/test_model_output_safety.py` pins both halves.
+  **Any new app-authored copy containing two `$` needs `fmt_money_md`** — this bit the
+  dashboard's own cash-reconciliation caption immediately after the model fix landed.
+- **`run_debate(context, on_stage=...)`** reports progress at the five real call
+  boundaries. The three `time.sleep(0.7)` calls that faked staging *after* all five calls
+  had already returned are gone.
+- **`st.segmented_control` router, not `st.tabs`** — `st.tabs` has no selected-index API
+  and re-mounted at index 0 on every rerun. Only the selected view renders now (~2/3 less
+  per-rerun work).
+- **Holdings is a semantic `<table>`**; `st.dataframe` paints to canvas and its a11y
+  fallback leaked raw floats regardless of the pandas Styler.
+- **Contrast**: loss-red 4.05 → 5.92:1 (now balanced with gain-green's 5.79); waterfall
+  connectors 1.24 → 3.24:1; focus ring added to the router, which had none at all.
+
+**Verify colours against the COMPUTED background, never the declared token.** A detector
+flagged white-on-`#3987e5` at 3.64:1 on primary buttons. Streamlit darkens primaryColor to
+`rgb(24,96,185)` for the button, where white measures 6.15:1 — and the "obvious fix" (ink
+on blue) measures 3.16:1, worse than the reported problem. Measured on the running app.
+
+`mock_debate.json` had its evidence strings reformatted from machine field names
+(`revenue_growth of 22%`) to spoken phrasing, matching the new prompt rule. Numbers and
+claims are unchanged; the file records this in its own `_note` key.
+
+**Bearing on the two open decisions.** The critique found the 19/40 was overwhelmingly
+*not* Streamlit's fault — the genuinely stack-blocked list is short (orchestrated motion,
+page-load choreography, a semantic grid, branded cold start, URL state, owning the frame),
+and everything in P0/P1 was plain Python. Migrating before these fixes would have carried
+every defect into React for the same score. Combined with the grading reality above —
+**UI/design is not a graded line item** — the migration is hard to justify on grade, and
+the 20% AI criterion is the only place a large build still buys points.

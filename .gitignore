@@ -14,3 +14,7 @@ venv/
 *.log
 preview_*.png
 st*.log
+
+# Impeccable design-tool scratch (screenshots of a superseded design)
+.impeccable-critique-shots/
+.impeccable/live/

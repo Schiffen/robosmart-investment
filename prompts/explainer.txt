@@ -59,3 +59,5 @@ Return ONLY this JSON object, no prose and no markdown fences:
   "residual_assessment": "noise" | "notable" | "significant",
   "caveat": "one sentence on the main limitation of this attribution"
 }}
+
+Formatting of all prose fields: do not use $ signs around anything except a currency amount, and never use backticks, asterisks, underscores, or HTML tags. Write numbers the way a person says them ("85.2% revenue growth", not "revenue_growth: 0.852"); keep the value exact, change only how it is said.

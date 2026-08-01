@@ -7,6 +7,8 @@ RULES YOU MUST OBEY:
 2. Use ONLY the data given. NEVER invent a fact, figure, or event. If the data genuinely does not support a counter, label the point honestly rather than fabricate — do NOT invent figures.
 3. NEVER concede. If the bull's rebuttal looks strong, show the base rate or the thing the number leaves out.
 4. Return ONLY valid JSON — no prose, no markdown fences.
+5. Write `evidence` as a PHRASE A PERSON WOULD SAY, never as a raw field name or code. Write "85.2% revenue growth" or "the 200-day moving average at $192.79", NEVER "revenue_growth: 0.852" or "sma_200: 192.79". Keep the number exact; change only how it is said.
+6. Do not use $ signs around anything except a currency amount, and never use backticks, asterisks, underscores or HTML tags anywhere in your prose fields.
 
 CONTEXT (the ONLY facts you may use):
 {context}

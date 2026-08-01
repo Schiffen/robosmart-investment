@@ -20,11 +20,12 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import portfolio_metrics as pm
+import theme
 # Shared design system — one source of truth for colours/formatting across all
 # three tabs. (Aliased to the local names this module already uses.)
 from theme import (
-    AXIS, BAD, CATEGORICAL, CURRENCY_SYMBOL, DIVERGING, GOOD, GRID, INK, INK_2,
-    MUTED, SURFACE,
+    AXIS, BAD, CATEGORICAL, CONNECTOR, CURRENCY_SYMBOL, DIVERGING, GOOD, GRID,
+    INK, INK_2, MUTED, SURFACE,
     fmt_money as _money, fmt_pct as _pct, style_fig as _style_fig,
 )
 
@@ -75,6 +76,47 @@ def _heatmap(corr: pd.DataFrame) -> go.Figure:
     return _style_fig(fig)
 
 
+def _contribution_bar(contrib: pd.DataFrame, sym: str = "$") -> go.Figure:
+    """Which holdings moved the portfolio today, largest impact first.
+
+    Horizontal bars because the labels are tickers and the comparison is along
+    one axis — a reader scans down a ranked list far faster than across a
+    rotated-label column chart. Bars diverge from a zero line so "helped" and
+    "hurt" are separated by position, not only by colour.
+    """
+    d = contrib.iloc[::-1]                       # largest at the TOP once drawn
+    values = d["contribution_pct"].to_numpy(dtype=float)
+    colors = [GOOD if v > 0 else BAD if v < 0 else MUTED for v in values]
+
+    fig = go.Figure(go.Bar(
+        x=values, y=d["ticker"], orientation="h",
+        marker=dict(color=colors),
+        text=[f"{v:+.2f}%" for v in values],
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(color=INK, size=12),
+        customdata=np.stack([d["day_change_pct"].to_numpy(dtype=float),
+                             d["weight_pct"].to_numpy(dtype=float),
+                             d["contribution_abs"].to_numpy(dtype=float)], axis=-1),
+        hovertemplate=("<b>%{y}</b><br>moved %{customdata[0]:+.2f}% today"
+                       "<br>at %{customdata[1]:.1f}% of your book"
+                       f"<br>= %{{customdata[2]:+,.2f}} {sym}"
+                       "<br><b>%{x:+.2f}%</b> of your portfolio move<extra></extra>"),
+    ))
+    fig.update_layout(
+        title="Who moved your portfolio today",
+        xaxis_title="Contribution to your portfolio's move (%)",
+        showlegend=False,
+    )
+    fig.update_xaxes(ticksuffix="%", zeroline=True, zerolinecolor=CONNECTOR,
+                     zerolinewidth=1.5)
+    span = float(np.nanmax(np.abs(values))) if len(values) else 1.0
+    pad = max(span * 0.45, 0.05)
+    fig.update_xaxes(range=[values.min() - pad, values.max() + pad])
+    fig.update_yaxes(showgrid=False)
+    return _style_fig(fig, height=max(220, 46 * len(d) + 90))
+
+
 def _perf_line(perf: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -99,28 +141,64 @@ def _perf_line(perf: pd.DataFrame) -> go.Figure:
 # Positions table (conditional green/red styling)
 # --------------------------------------------------------------------------
 
+def _sign_class(v) -> str:
+    """Colour class for a signed cell. Colour is redundant here, never sole:
+    every formatted value below already carries an explicit +/- or a currency
+    symbol, so the meaning survives with colour stripped entirely."""
+    if v is None or not np.isfinite(v):
+        return "rs-flat"
+    return "rs-pos" if v > 0 else "rs-neg" if v < 0 else "rs-flat"
+
+
 def _render_positions_table(df: pd.DataFrame, sym: str) -> None:
-    show = df.rename(columns={
-        "ticker": "Ticker", "shares": "Shares", "cost_basis": "Cost basis",
-        "current_price": "Current", "market_value": "Market value",
-        "pnl_abs": "P&L", "pnl_pct": "P&L %", "weight_pct": "Weight %",
-        "day_change_pct": "Day %",
-    })
+    """Render holdings as a semantic <table>.
 
-    from theme import signed_color as color_signed   # shared green/red logic
+    This replaces st.dataframe deliberately. The Streamlit grid paints to a
+    <canvas>, and its accessibility fallback exposed the UNFORMATTED floats —
+    a screen reader heard "513.8399999999999" where the screen showed "$513.84",
+    "150" where it showed "$150.00", and "-1.88" where it showed "-1.88%".
+    The pandas Styler.format() only ever styled the paint, never the a11y tree,
+    so display and announced content could not be reconciled from inside
+    st.dataframe. Here they are the same string by construction.
+    """
+    def money(v):
+        return "N/A" if v is None or not np.isfinite(v) else f"{sym}{v:,.2f}"
 
-    styler = (
-        show.style
-        .format({
-            "Shares": "{:,.0f}", "Cost basis": f"{sym}{{:,.2f}}".format,
-            "Current": lambda v: _money(v, sym), "Market value": lambda v: _money(v, sym),
-            "P&L": lambda v: _money(v, sym), "P&L %": _pct,
-            "Weight %": lambda v: "N/A" if not np.isfinite(v) else f"{v:.1f}%",
-            "Day %": _pct,
-        }, na_rep="N/A")
-        .map(color_signed, subset=["P&L", "P&L %", "Day %"])
+    def pct(v):
+        return "N/A" if v is None or not np.isfinite(v) else f"{v:+.2f}%"
+
+    def weight(v):
+        return "N/A" if v is None or not np.isfinite(v) else f"{v:.1f}%"
+
+    headers = ["Ticker", "Shares", "Cost basis", "Current", "Market value",
+               "P&L", "P&L %", "Weight %", "Day %"]
+
+    rows = []
+    for r in df.itertuples():
+        cells = [
+            f"<th scope='row'>{theme.safe(r.ticker)}</th>",
+            f"<td>{r.shares:,.0f}</td>",
+            f"<td>{money(r.cost_basis)}</td>",
+            f"<td>{money(r.current_price)}</td>",
+            f"<td>{money(r.market_value)}</td>",
+            f"<td class='{_sign_class(r.pnl_abs)}'>{money(r.pnl_abs)}</td>",
+            f"<td class='{_sign_class(r.pnl_pct)}'>{pct(r.pnl_pct)}</td>",
+            f"<td>{weight(r.weight_pct)}</td>",
+            f"<td class='{_sign_class(r.day_change_pct)}'>{pct(r.day_change_pct)}</td>",
+        ]
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+
+    head = "".join(f"<th scope='col'>{h}</th>" for h in headers)
+    st.markdown(
+        "<div class='rs-table-wrap'>"
+        "<table class='rs-table'>"
+        "<caption>Your holdings — one row per position. Gains and losses carry "
+        "an explicit + or − as well as colour.</caption>"
+        f"<thead><tr>{head}</tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody>"
+        "</table></div>",
+        unsafe_allow_html=True,
     )
-    st.dataframe(styler, width="stretch", hide_index=True)
 
 
 # --------------------------------------------------------------------------
@@ -176,9 +254,14 @@ def render(portfolio: dict) -> None:
         weights = {r.ticker: (r.weight_pct / 100.0)
                    for r in df.itertuples() if np.isfinite(r.weight_pct)}
 
+        # Two rows of two on narrow desktops rather than four across: at 1024px
+        # a 4-across row gave each tile 129px for a value needing 161px, and the
+        # headline number — the user's total portfolio value — silently
+        # ellipsis-clipped to "$47,379...".
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total value", _money(summary["total_value"], sym),
-                  help="Equity holdings + cash.")
+                  help="Everything you own here: the market value of your "
+                       "holdings plus uninvested cash.")
         c2.metric(
             "Total P&L", _money(summary["total_pnl_abs"], sym),
             delta=_pct(summary["total_pnl_pct"]), delta_color="normal",
@@ -190,31 +273,82 @@ def render(portfolio: dict) -> None:
             help="Day's equity move as a % of yesterday's total account value.",
         )
         c4.metric("Positions", f"{summary['num_positions']}",
-                  help=f"Cash: {_money(summary['cash'], sym)}")
+                  help="Number of distinct holdings.")
 
-        st.divider()
+        # The holdings table sums to invested equity, but "Total value" adds
+        # cash on top — so the two numbers visibly disagree by exactly the cash
+        # balance, and the reconciliation used to live only inside a (?) tooltip
+        # on an unrelated tile. A beginner reading a $5,000 gap concludes the
+        # app is broken. State it in the open instead.
+        cash = summary.get("cash") or 0.0
+        invested = (summary.get("total_value") or 0.0) - cash
+        if cash > 0:
+            # fmt_money_md, not fmt_money: three bare $ in one markdown string
+            # makes Streamlit read the span between the first two as LaTeX and
+            # paint it as a code block. This exact sentence did that.
+            _md = theme.fmt_money_md
+            st.caption(
+                f"{_md(summary['total_value'], sym)} total = "
+                f"{_md(invested, sym)} invested in the {summary['num_positions']} "
+                f"holdings below, plus {_md(cash, sym)} cash you haven’t invested. "
+                f"The table below shows the invested part."
+            )
 
+        # theme.notice, not st.warning: st.warning is aria-live="assertive" and
+        # these re-render on every rerun, interrupting a screen reader each time
+        # with a message that has not changed.
         flags = pm.concentration_flags(df, sector_df)
         if flags:
             for f in flags:
-                st.warning("⚠️ " + f)
+                theme.notice(f, "warn")
         else:
-            st.success("✅ Well diversified — no single position, sector, or top-3 "
-                       "cluster exceeds the risk guidelines.")
+            theme.notice("Well diversified — no single position, sector, or top-3 "
+                         "cluster exceeds the risk guidelines.", "good")
 
-        st.subheader("Holdings")
+        # ---- Who moved you today ------------------------------------------
+        # The headline said the book moved +0.54% but never which holding did
+        # it. These contributions sum to that number exactly (same denominator,
+        # see pm.day_move_contributions), so the breakdown cannot disagree with
+        # the tile above it.
+        try:
+            contrib = pm.day_move_contributions(df, portfolio.get("cash", 0.0))
+            if not contrib.empty and len(contrib) > 1:
+                theme.section("Who moved you today")
+                top = contrib.iloc[0]
+                helped = contrib[contrib["contribution_pct"] > 0]
+                hurt = contrib[contrib["contribution_pct"] < 0]
+                verb = "added" if top["contribution_pct"] > 0 else "cost you"
+                st.markdown(
+                    f"**{top['ticker']}** {verb} "
+                    f"**{abs(top['contribution_pct']):.2f}%** of your portfolio's "
+                    f"move today — it changed {top['day_change_pct']:+.2f}% while "
+                    f"making up {top['weight_pct']:.0f}% of what you hold. "
+                    f"{len(helped)} holding{'s' if len(helped) != 1 else ''} helped, "
+                    f"{len(hurt)} held you back."
+                )
+                st.plotly_chart(_contribution_bar(contrib, sym),
+                                width="stretch", config=theme.CHART_CONFIG)
+                st.caption(
+                    "Impact is size × move, not move alone: a small position "
+                    "jumping 10% can matter less than your largest holding "
+                    "drifting 1%. These add up to the day change shown above."
+                )
+        except Exception as e:  # noqa: BLE001 — an insight, never a blocker
+            st.caption(f"Contribution breakdown unavailable: {e}")
+
+        theme.section("Holdings")
         _render_positions_table(df, sym)
     except Exception as e:  # noqa: BLE001 — keep the tab alive
         st.error(f"Could not compute portfolio summary: {e}")
         return
 
-    st.divider()
-
     # ---- Sector donut + correlation heatmap (each isolated) ---------------
+    theme.section("How concentrated you really are")
     left, right = st.columns(2)
     with left:
         try:
-            st.plotly_chart(_donut(sector_df, sym), width="stretch")
+            st.plotly_chart(_donut(sector_df, sym), width="stretch",
+                            config=theme.CHART_CONFIG)
         except Exception as e:  # noqa: BLE001
             st.error(f"Sector chart unavailable: {e}")
     with right:
@@ -224,7 +358,8 @@ def render(portfolio: dict) -> None:
                 st.info("📈 Correlation needs at least two holdings with price "
                         "history — add another position to see the matrix.")
             else:
-                st.plotly_chart(_heatmap(corr), width="stretch")
+                st.plotly_chart(_heatmap(corr), width="stretch",
+                                config=theme.CHART_CONFIG)
                 avg_rho = pm.average_pairwise_correlation(corr)
                 pair = pm.most_correlated_pair(corr)
                 bits = []
@@ -242,9 +377,8 @@ def render(portfolio: dict) -> None:
         except Exception as e:  # noqa: BLE001
             st.error(f"Correlation chart unavailable: {e}")
 
-    st.divider()
-
     # ---- Portfolio beta (regressed on SPY, with R²) -----------------------
+    theme.section("How much market risk you are carrying")
     bcol, icol = st.columns([1, 2])
     stats = {"beta": np.nan, "r_squared": np.nan, "n_days": 0}
     try:
@@ -301,6 +435,48 @@ def render(portfolio: dict) -> None:
                 delta_color="normal")
         else:
             r4.metric("1y return", "N/A")
+
+        # Say what those four numbers MEAN. Beta already gets a plain-language
+        # sentence directly above; these four got a (?) tooltip each, which is
+        # hover-only and gone on touch. The inconsistency taught the beginner
+        # that some numbers on this page are for her and some are not.
+        # PRODUCT.md principle 5: explain to the beginner, let the evaluator
+        # drill down — one surface, two depths.
+        bits = []
+        if np.isfinite(rm["port_vol"]):
+            vol = rm["port_vol"] * 100
+            if np.isfinite(rm["spy_vol"]):
+                spy_vol = rm["spy_vol"] * 100
+                calmer = "calmer than" if vol < spy_vol else "choppier than"
+                if abs(vol - spy_vol) < 1.0:
+                    calmer = "about as jumpy as"
+                bits.append(
+                    f"In a typical year your holdings swing about "
+                    f"**{vol:.0f}%** up or down — {calmer} the S&P 500's "
+                    f"{spy_vol:.0f}%.")
+            else:
+                bits.append(f"In a typical year your holdings swing about "
+                            f"**{vol:.0f}%** up or down.")
+        if np.isfinite(rm["max_drawdown"]):
+            bits.append(
+                f"The worst stretch of the past year took the book "
+                f"**{abs(rm['max_drawdown']) * 100:.1f}%** below its own peak "
+                f"before recovering — that is the drop you would have had to sit "
+                f"through.")
+        eff_n, n_pos = dv["effective_n"], dv["n_positions"]
+        if np.isfinite(eff_n):
+            if eff_n < n_pos - 0.5:
+                bits.append(
+                    f"And although you hold **{n_pos}** positions, they are "
+                    f"uneven enough that the book behaves like roughly "
+                    f"**{eff_n:.0f} equal-sized** ones.")
+            else:
+                bits.append(
+                    f"Your **{n_pos}** positions are evenly enough sized that "
+                    f"the book behaves like about {eff_n:.0f} equal ones — "
+                    f"no single holding dominates.")
+        if bits:
+            st.markdown(" ".join(bits))
     except Exception:  # noqa: BLE001 — snapshot is a bonus; never break the tab
         pass
 
@@ -308,7 +484,9 @@ def render(portfolio: dict) -> None:
     try:
         perf = pm.performance_vs_benchmark(contexts, weights, spy_history)
         if perf is not None and not perf.empty:
-            st.plotly_chart(_perf_line(perf), width="stretch")
+            theme.section("How this book would have performed")
+            st.plotly_chart(_perf_line(perf), width="stretch",
+                            config=theme.CHART_CONFIG)
             st.caption("Hypothetical: today's holdings held at constant weights "
                        "(daily-rebalanced) over the past year — a backtest of your "
                        "current book, not a realized track record. Ignores trades, "

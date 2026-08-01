@@ -23,6 +23,8 @@ BULL REBUTTAL:
 BEAR REBUTTAL:
 {bear_rebuttal}
 
+Formatting of all prose fields: do not use $ signs around anything except a currency amount, and never use backticks, asterisks, underscores, or HTML tags. Write numbers the way a person says them ("85.2% revenue growth", not "revenue_growth: 0.852"); keep the value exact, change only how it is said.
+
 Return a JSON object with EXACTLY this shape:
 {{"verdict": "bull",
   "confidence": 60,

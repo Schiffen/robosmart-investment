@@ -4,15 +4,35 @@
     "opening": {
       "thesis": "NVIDIA remains the structurally advantaged leader of the AI compute build-out, and its current momentum and margins justify continued ownership despite a rich multiple.",
       "claims": [
-        {"claim": "Growth is still accelerating off a large base", "evidence": "revenue_growth of 22% with a $2.15T market cap shows the demand curve hasn't rolled over.", "strength": "high"},
-        {"claim": "Profitability funds its own moat", "evidence": "profit_margin of 48% gives it the cash to out-invest rivals on the next architecture.", "strength": "high"},
-        {"claim": "The tape confirms the thesis", "evidence": "price 875-equivalent sits above both the 50-day (840.2) and 200-day (720.5) SMAs, an uptrend structure.", "strength": "medium"}
+        {
+          "claim": "Growth is still accelerating off a large base",
+          "evidence": "22% revenue growth with a $2.15T market cap shows the demand curve hasn't rolled over.",
+          "strength": "high"
+        },
+        {
+          "claim": "Profitability funds its own moat",
+          "evidence": "a 48% profit margin gives it the cash to out-invest rivals on the next architecture.",
+          "strength": "high"
+        },
+        {
+          "claim": "The tape confirms the thesis",
+          "evidence": "the price sits above both the 50-day (840.2) and 200-day (720.5) SMAs, an uptrend structure.",
+          "strength": "medium"
+        }
       ]
     },
     "rebuttal": {
       "points": [
-        {"attacks": "the valuation concern", "counter": "A forward P/E of 28.1 vs trailing 34.2 shows the multiple compresses as earnings catch up.", "evidence": "forward_pe 28.1 < trailing pe 34.2."},
-        {"attacks": "the concentration risk", "counter": "Customer concentration is real but demand is broadening across sovereign and enterprise AI, not just hyperscalers.", "evidence": "revenue_growth 22% sustained despite a large base."}
+        {
+          "attacks": "the valuation concern",
+          "counter": "A forward P/E of 28.1 vs trailing 34.2 shows the multiple compresses as earnings catch up.",
+          "evidence": "forward P/E 28.1 versus trailing 34.2."
+        },
+        {
+          "attacks": "the concentration risk",
+          "counter": "Customer concentration is real but demand is broadening across sovereign and enterprise AI, not just hyperscalers.",
+          "evidence": "22% revenue growth sustained despite a large base."
+        }
       ]
     }
   },
@@ -20,15 +40,35 @@
     "opening": {
       "thesis": "The price already embeds a flawless outcome; at this multiple, any deceleration in growth or margin is asymmetric downside, and the technicals are late-cycle.",
       "claims": [
-        {"claim": "The multiple leaves no margin for error", "evidence": "a trailing P/E of 34.2 prices in years of flawless execution; a single soft quarter re-rates it.", "strength": "high"},
-        {"claim": "Growth is decelerating in rate-of-change terms", "evidence": "22% revenue_growth is strong but below the triple-digit prints of the prior cycle — the second derivative is negative.", "strength": "medium"},
-        {"claim": "Leverage adds fragility", "evidence": "debt_to_equity of 0.41 is manageable now but amplifies any demand air-pocket.", "strength": "low"}
+        {
+          "claim": "The multiple leaves no margin for error",
+          "evidence": "a trailing P/E of 34.2 prices in years of flawless execution; a single soft quarter re-rates it.",
+          "strength": "high"
+        },
+        {
+          "claim": "Growth is decelerating in rate-of-change terms",
+          "evidence": "22% revenue growth is strong but below the triple-digit prints of the prior cycle — the second derivative is negative.",
+          "strength": "medium"
+        },
+        {
+          "claim": "Leverage adds fragility",
+          "evidence": "a debt-to-equity of 0.41 is manageable now but amplifies any demand air-pocket.",
+          "strength": "low"
+        }
       ]
     },
     "rebuttal": {
       "points": [
-        {"attacks": "the 'forward P/E is cheaper' claim", "counter": "Forward P/E only looks cheap if the forward estimate holds; those estimates are the most likely thing to be cut.", "evidence": "forward_pe 28.1 depends on consensus growth that has never been this crowded."},
-        {"attacks": "the uptrend claim", "counter": "Price above the 200-day is exactly where late-cycle tops form; an RSI of 58.3 is not oversold support.", "evidence": "rsi_14 58.3, price extended vs sma_200 720.5."}
+        {
+          "attacks": "the 'forward P/E is cheaper' claim",
+          "counter": "Forward P/E only looks cheap if the forward estimate holds; those estimates are the most likely thing to be cut.",
+          "evidence": "a forward P/E of 28.1 depends on consensus growth that has never been this crowded."
+        },
+        {
+          "attacks": "the uptrend claim",
+          "counter": "Price above the 200-day is exactly where late-cycle tops form; an RSI of 58.3 is not oversold support.",
+          "evidence": "RSI 58.3, price extended vs the 200-day moving average at 720.5."
+        }
       ]
     }
   },
@@ -44,5 +84,6 @@
       "If forward P/E estimates are cut and the multiple stays >30x, the bear's asymmetry thesis is confirmed."
     ],
     "key_uncertainty": "Whether AI compute demand is a multi-year secular build-out or a front-loaded capex pull-forward that normalizes within a few quarters."
-  }
+  },
+  "_note": "Evidence strings were reformatted from machine field names (revenue_growth: 0.852) to spoken phrasing (85.2% revenue growth) to match the prompt rule added to prompts/*.txt. Every numeric value and every claim is unchanged from the recorded run; only how a field name is said was edited."
 }

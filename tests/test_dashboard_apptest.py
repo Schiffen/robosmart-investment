@@ -17,8 +17,13 @@ def test_dashboard_renders_without_exception(monkeypatch):
     assert not at.exception, f"App raised: {at.exception}"
     # 4 headline tiles + 4 risk tiles
     assert len(at.metric) >= 8
-    # the concentrated demo book must trip concentration warnings
-    assert len(at.warning) >= 1
+    # The concentrated demo book must trip concentration warnings. These render
+    # through theme.notice() rather than st.warning: st.warning is
+    # aria-live="assertive" and re-announces on every rerun, interrupting a
+    # screen reader with a message that has not changed.
+    notices = sum(m.value.count("data-notice='warn'")
+                  for m in at.markdown if isinstance(m.value, str))
+    assert notices >= 1
     # no st.error blocks means every section rendered cleanly
     assert len(at.error) == 0
 
