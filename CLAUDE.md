@@ -237,11 +237,16 @@ on the **20% documentation** line, which is still stale.
 evaluator-legible depth; **substance preserved, structure free to change**; positioning is
 **execution-led** — the user's stated differentiator is design, motion and frontend craft.
 
-That collides with the stack: Streamlit custom components render in isolated iframes and
-cannot call each other, so orchestrated motion is unreachable. `motion-framer` and
-`gsap-scrolltrigger` are React-only and cannot run against `tabs/*.py`. The React + FastAPI
-migration question is therefore open on the user's own terms, not merely as a preference —
-the ~2,365 lines of analytics and all tests would carry over intact.
+This was recorded as colliding with the stack — *"custom components render in isolated
+iframes and cannot call each other, so orchestrated motion is unreachable"* — which made
+the React + FastAPI migration look forced rather than preferred. **That collision does not
+exist.** It described Components v1. Streamlit 1.60 ships **v2**, which uses Shadow DOM in
+the same document, not iframes, so a shared timeline across the page is reachable here.
+`gsap-scrolltrigger` was written off as React-only on the same reasoning; GSAP is vanilla
+JS and runs fine inside a CCv2 component. (`motion-framer` genuinely is React-only.)
+
+The migration question stays open because it is the user's call, but see PRODUCT.md: no
+argument for it currently survives contact with the evidence.
 
 Impeccable's detector **does** work here (it reads CSS inside Python strings). Both
 previously-open `border-left:3px solid` findings are closed.
