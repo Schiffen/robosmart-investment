@@ -98,4 +98,7 @@ def summary_line() -> str | None:
     else:
         parts.append("live market data")
     parts.append("recorded AI output" if mode["llm"] == "recorded" else "live AI")
-    return "🧪 " + " · ".join(parts)
+    # Material Symbol rather than an emoji: this is interface chrome, and the
+    # app's chrome is Material Symbols throughout now. (The investor-profile
+    # emoji stay — those are persona avatars, which is what emoji are good at.)
+    return ":material/science: " + " · ".join(parts)

@@ -1,11 +1,119 @@
-# Preview-only theme (app-level config belongs to Person 1). Dark base makes the
-# dataviz palette sit correctly. Recommend Person 1 adopt something similar.
+# RoboSmart theme.
+#
+# This file and theme.py are ONE design system split across two mechanisms.
+# The rule for which goes where:
+#
+#   config.toml  — anything Streamlit applies to its OWN widgets. Setting it
+#                  here means the framework's chrome and the app's panels agree
+#                  by construction, instead of the app fighting the framework
+#                  with `!important` and losing on every widget it forgot.
+#   theme.py     — the app's own surfaces, the measured contrast contract, and
+#                  anything Streamlit has no concept of.
+#
+# The colours below are NOT free choices. Each is measured, and its ratio is
+# recorded beside its token in theme.py. Change one here and you must
+# re-measure there — against the COMPUTED background of a rendered element, in
+# the STATE you are claiming. This project once recorded "Streamlit darkens
+# primaryColor for buttons" as a general fact; it is only true of :hover, and
+# generalising it from one hovered sample hid a real AA failure at rest for
+# two revisions. Measure the state, not just the element.
+
 [theme]
 base = "dark"
-primaryColor = "#3987e5"
-backgroundColor = "#0d0d0d"
-secondaryBackgroundColor = "#1a1a19"
+
+# --- Surfaces and ink (mirrors theme.py PAGE / SURFACE / INK) -------------
+# #1d74dd, not #3987e5. Same hue and saturation, darkened to the point where a
+# white button label reaches 4.57:1 — because at #3987e5 it measured 3.64:1 and
+# FAILED AA for normal text.
+#
+# The project previously recorded the opposite conclusion ("Streamlit darkens
+# primaryColor to rgb(24,96,185), where white measures 6.15:1 and passes"), and
+# that note is what stopped it being fixed. Re-measured in the live DOM: the
+# button background is rgb(57,135,229) AT REST — exactly the declared value,
+# not darkened. rgb(24,96,185) is Streamlit's :HOVER background. The original
+# measurement read a hover state and generalised it to the control.
+#
+# The label is 15px/650 Inter, which is not WCAG "large text" (>=24px, or
+# >=18.66px bold), so 4.5:1 is the threshold that applies and 3:1 is not
+# available. Fixed at the token so every derived state moves with it.
+primaryColor = "#1d74dd"
+backgroundColor = "#0d0d0d"           # theme.PAGE
+secondaryBackgroundColor = "#1a1a19"  # theme.SURFACE
+textColor = "#ffffff"                 # theme.INK      19.4:1 on page
+linkColor = "#8ec0f7"                 # theme.FOCUS    10.2:1 on page
+borderColor = "#383835"               # theme.AXIS
+codeBackgroundColor = "#151514"
+codeTextColor = "#c3c2b7"             # theme.INK_2
+
+# Widget borders ON. They were off, and that is a large part of why the app
+# read as "flat black with things on it" — inputs had no edges, so the sidebar
+# was a list of floating labels rather than a set of controls.
+showWidgetBorder = true
+showSidebarBorder = true
+
+# --- Shape ----------------------------------------------------------------
+# baseRadius MUST equal theme.RADIUS_PANEL. That is the whole point of the
+# token: Streamlit's widgets and the app's panels round identically, so the
+# page cannot redevelop the near-miss radius drift it had before (five values
+# doing four jobs).
+baseRadius = "10px"
+buttonRadius = "8px"
+
+# --- Typography -----------------------------------------------------------
+# Inter for text, JetBrains Mono for figures. Google Fonts by URL is the only
+# supported mechanism for a webfont here.
+#
+# The fallback is deliberately NOT appended to these strings. The documented
+# "Family:url, fallback" syntax puts a comma-separated fallback after a URL
+# that already contains commas, and a parse that goes wrong there fails
+# SILENTLY — no webfont, no error. The stack that actually matters (the
+# numerals) is declared explicitly in theme.py rule 12 where it is
+# unambiguous. If Inter fails to load, Streamlit's own default carries the body
+# text, which is an acceptable degradation; a font fetch failing mid-defence
+# must not take the type system with it.
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+baseFontSize = 15
+linkUnderline = false
+
+# headingFontSizes / headingFontWeights are deliberately NOT set. theme.py
+# rule 6 already sizes h1 and h2 with reasoning attached (the product name must
+# not outweigh the user's own portfolio value), and .rs-section styles h2 by
+# class. Declaring a second global scale would leave two systems fighting over
+# the same elements — the exact failure this file exists to prevent.
+
+# --- Semantic colours -----------------------------------------------------
+# Match theme.GOOD / BAD / WARN exactly, so Streamlit's own :green-badge[] and
+# st.badge(color=...) land on the same palette as the charts and tiles. The
+# first two are matched on saturation as well as luminance: equal contrast with
+# unequal chroma still makes a gain shout louder than a loss of the same size.
+greenColor = "#1ba420"                # 5.91:1 page · 5.29:1 surface
+redColor = "#e5665f"                  # 5.92:1 page · 5.31:1 surface
+yellowColor = "#fab219"
+orangeColor = "#ec835a"
+blueColor = "#3987e5"
+violetColor = "#9085e9"
+grayColor = "#898781"                 # theme.MUTED
+
+# --- Charts ---------------------------------------------------------------
+# theme.CATEGORICAL, same fixed order. The Plotly figures pass their colours
+# explicitly, so this exists to stop any native Streamlit chart from
+# introducing a second palette.
+chartCategoricalColors = [
+    "#3987e5", "#d95926", "#199e70", "#c98500",
+    "#d55181", "#008300", "#9085e9", "#e66767",
+]
+
+dataframeBorderColor = "#383835"
+dataframeHeaderBackgroundColor = "#1a1a19"
+
+[theme.sidebar]
+backgroundColor = "#1a1a19"
+secondaryBackgroundColor = "#151514"
+borderColor = "#383835"
 textColor = "#ffffff"
+primaryColor = "#1d74dd"
 
 [server]
 headless = true

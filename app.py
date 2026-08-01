@@ -62,7 +62,12 @@ def _adopt_streamlit_secrets() -> None:
 # view import resolve their mode from it.
 _adopt_streamlit_secrets()
 
-st.set_page_config(page_title="RoboSmart Investment", layout="wide", page_icon="📈")
+st.set_page_config(page_title="RoboSmart Investment", layout="wide",
+                   page_icon="assets/robosmart-mark.svg")
+# The authored mark, not an emoji. st.logo reads the file server-side and
+# inlines it as a base64 data: URI, so there is no network fetch and nothing to
+# fail on a cold Community Cloud start.
+st.logo("assets/robosmart-mark.svg", size="large")
 theme.inject_css()
 
 ss = st.session_state
@@ -113,7 +118,7 @@ with st.sidebar:
     # rather than claiming heading semantics it does not have.
     st.markdown(
         "<div style='font-size:1.35rem;font-weight:700;letter-spacing:-.015em;"
-        "margin:.2rem 0 1rem'>📈 RoboSmart</div>",
+        "margin:.2rem 0 1rem'>RoboSmart</div>",
         unsafe_allow_html=True,
     )
 
@@ -151,7 +156,7 @@ with st.sidebar:
         st.rerun()
 
     if ss.get("loaded_profile") is None and ss.portfolio:
-        st.caption("📄 Showing **your uploaded portfolio**. Pick a book above to "
+        st.caption(":material/description: Showing **your uploaded portfolio**. Pick a book above to "
                    "switch back to a sample.")
 
     with st.expander("Or upload your own CSV"):
@@ -260,8 +265,18 @@ from tabs.debate import render as render_debate
 # renders per run instead of all three, which cuts the per-rerun work by about
 # two thirds.
 VIEWS = ["Dashboard", "Ask the analyst", "Bull vs Bear", "What Happened Today"]
-_ICON = {"Dashboard": "📊", "Ask the analyst": "💬",
-         "Bull vs Bear": "⚔️", "What Happened Today": "🔍"}
+# Material Symbols, not emoji. Four emoji meant four glyphs at four different
+# weights, colour temperatures and baselines — the loudest unauthored signal on
+# the page, sitting on its only navigation. These inherit the text colour and
+# the type's optical weight, so the router reads as one control.
+#
+# The trailing space is load-bearing: Streamlit's leading-icon parser only
+# fires when the token is followed by whitespace, and ":material/chat:Ask"
+# renders the literal text ":material_chat:Ask".
+_ICON = {"Dashboard": ":material/analytics:",
+         "Ask the analyst": ":material/forum:",
+         "Bull vs Bear": ":material/balance:",
+         "What Happened Today": ":material/troubleshoot:"}
 
 chosen = st.segmented_control(
     "View", VIEWS, default=ss.view, key="view_choice",

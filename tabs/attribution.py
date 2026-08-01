@@ -83,7 +83,6 @@ def _waterfall(market: float, sector: float, idio: float, total: float,
         hovertemplate="%{x}<br>%{y:+.2f}%<extra></extra>",
     ))
     fig.update_layout(
-        title=f"What moved {ticker} today — market vs sector vs the company itself",
         yaxis_title="Contribution to today's move (%)",
         showlegend=False,
     )
@@ -137,7 +136,7 @@ def _render_explanation(result: dict) -> None:
         # confidently designed panel on the tab, because that is what it is.
         st.markdown(
             f"<div style='background:{theme.SURFACE};border:1px solid {theme.AXIS};"
-            f"border-radius:14px;padding:1.35rem 1.5rem'>"
+            f"border-radius:{theme.RADIUS_HERO};padding:1.35rem 1.5rem'>"
             f"<div style='font-size:11px;color:{theme.MUTED};text-transform:uppercase;"
             f"letter-spacing:.09em;font-weight:700'>The honest answer</div>"
             f"<div style='font-size:1.5rem;font-weight:700;color:{theme.INK};"
@@ -191,7 +190,7 @@ def _render_explanation(result: dict) -> None:
                 st.markdown(theme.safe_md(reasoning))
 
     if caveat:
-        st.caption(f"⚠️ {theme.safe_md(caveat)}")
+        st.caption(f":material/warning: {theme.safe_md(caveat)}")
 
 
 # --------------------------------------------------------------------------
@@ -305,7 +304,7 @@ def render(context: dict) -> None:
             reasons.append(f"only {int(n_obs)} overlapping days were available")
         why = "; ".join(reasons) if reasons else "the model fit is weak"
         st.warning(
-            f"⚠️ **Treat this split as rough** — {why}. The market and sector "
+            f":material/warning: **Treat this split as rough** — {why}. The market and sector "
             f"components may be unreliable, so the company-specific residual could "
             f"be over- or under-stated."
         )
@@ -325,7 +324,7 @@ def render(context: dict) -> None:
     # (8) Noise → say so plainly and skip the LLM entirely.
     if resid < NOISE_THRESHOLD:
         st.success(
-            f"✅ The company-specific part of today's move is just "
+            f":material/check_circle: The company-specific part of today's move is just "
             f"**{theme.fmt_pct(idio)}** — within normal daily noise. Nothing to "
             f"explain here: today's move was essentially the market and sector "
             f"carrying {ticker} along."
@@ -339,7 +338,7 @@ def render(context: dict) -> None:
     )
 
     cache_key = f"attribution_explanation::{ticker}"
-    clicked = st.button("🔍 Explain the company-specific move",
+    clicked = st.button(":material/troubleshoot: Explain the company-specific move",
                         key=f"explain_btn_{ticker}", type="primary")
 
     if clicked:

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"
+     role="img" aria-label="RoboSmart">
+  <title>RoboSmart</title>
+  <!--
+    The mark is the product's argument in one glyph: a measured grid (the
+    statistics that run FIRST and independently) with a move rising through it
+    (the price action the model is only allowed to interpret afterwards).
+
+    Built to survive both ends of its size range. At 24px in the sidebar the
+    grid collapses toward texture and the rising line plus its apex dot is what
+    reads; at hero scale the grid resolves and the plate edge appears. Nothing
+    here depends on a detail that vanishes when small.
+
+    Self-contained on purpose: no external font, no CSS custom property, no
+    currentColor. st.logo() and an <img> both render this without the app's
+    stylesheet, and it must not turn invisible when the stylesheet is absent.
+  -->
+  <defs>
+    <!-- Blue -> violet, the same traverse the page background makes. Ties the
+         mark to the aurora without either one quoting a literal from the other. -->
+    <linearGradient id="rsStroke" x1="4" y1="24" x2="28" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3987e5"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="rsPlate" x1="16" y1="1" x2="16" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#232327"/>
+      <stop offset="1" stop-color="#151517"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Plate. Dark rather than transparent so the mark holds its own shape on a
+       light surface too — a browser tab, a PDF, a slide. -->
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#rsPlate)"/>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none"
+        stroke="#ffffff" stroke-opacity=".10"/>
+
+  <!-- The measured grid. Deliberately recessive: it is the substrate the move
+       is read against, not the subject. -->
+  <g stroke="#ffffff" stroke-opacity=".13" stroke-width="1" stroke-linecap="square">
+    <path d="M11 7v18M21 7v18"/>
+    <path d="M6 12h20M6 20h20"/>
+  </g>
+
+  <!-- The move. Two-segment, not a smooth curve: this product decomposes a
+       move into parts that sum, and a polyline says that where a spline would
+       say "growth" generically. -->
+  <path d="M6.5 22.5 L13 16 L18.5 19 L26 8.5"
+        fill="none" stroke="url(#rsStroke)" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Apex. The halo separates the dot from the stroke terminating underneath
+       it, so it is painted in the PLATE's colour at this corner rather than a
+       darker one. Painted darker (the first attempt) it stopped reading as
+       negative space and started reading as a shadow blob at hero scale. -->
+  <circle cx="26" cy="8.5" r="3.2" fill="#232327"/>
+  <circle cx="26" cy="8.5" r="2.3" fill="#8b5cf6"/>
+</svg>

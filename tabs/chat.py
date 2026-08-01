@@ -52,14 +52,34 @@ def _label(name: str, tool_input: dict | None = None) -> str:
 
 
 def _render_tool_trace(tool_calls: list) -> None:
-    """The receipts. Collapsed by default — the beginner wants the answer, the
-    evaluator wants to see that it is real. One surface, two depths."""
+    """The receipts.
+
+    OPEN by default, and that is a deliberate reversal. "Collapsed — the
+    beginner wants the answer, the evaluator wants to see it is real" sounded
+    like progressive disclosure, but it hid the single strongest piece of
+    evidence this project has: the agent choosing tools, and every figure it
+    states being traceable to a computed return. One click away is, in
+    practice, invisible — nobody opens the expander during a five-minute demo,
+    so the grounding was claimed rather than shown.
+
+    The compromise that keeps the beginner's reading intact: the answer is
+    still ABOVE this, and what opens is a summary strip of which tools ran. The
+    raw JSON stays one level deeper, where it belongs.
+    """
     if not tool_calls:
         return
     n = len(tool_calls)
+
+    # Visible without any interaction at all — even if the reader collapses the
+    # section below, they have already seen that real calls happened.
+    names = " ".join(f":blue-badge[{_label(c.get('name'), c.get('input'))}]"
+                     for c in tool_calls)
+    st.markdown(names)
+
     with st.expander(f"How I worked this out · {n} "
                      f"{'calculation' if n == 1 else 'calculations'} on your "
-                     f"real portfolio"):
+                     f"real portfolio",
+                     expanded=True, icon=":material/function:"):
         st.caption(
             "Every figure in the answer came from these. The analyst has no "
             "market data of its own — it can only report what these returned."

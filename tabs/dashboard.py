@@ -38,7 +38,7 @@ def _sym(portfolio: dict) -> str:
 # Chart builders
 # --------------------------------------------------------------------------
 
-def _donut(sector_df: pd.DataFrame, sym: str = "$") -> go.Figure:
+def _donut(sector_df: pd.DataFrame, sym: str = "$", height: int = 340) -> go.Figure:
     n = len(sector_df)
     colors = [CATEGORICAL[i % len(CATEGORICAL)] for i in range(n)]  # cycle, never run out
     invested = float(np.nansum(sector_df["market_value"].to_numpy()))
@@ -50,10 +50,14 @@ def _donut(sector_df: pd.DataFrame, sym: str = "$") -> go.Figure:
         textinfo="label+percent", textfont=dict(color=INK, size=12),
         hovertemplate="%{label}<br>%{percent}<extra></extra>",
     ))
-    fig.update_layout(title="Sector allocation", showlegend=False)
+    # No Plotly title: inside the lede the donut is self-labelling (every
+    # wedge is named on it), and a title here rendered ABOVE the "TOTAL
+    # VALUE" label — so the first text inside a block whose whole premise is
+    # "the left column is primary" belonged to the right column.
+    fig.update_layout(showlegend=False)
     fig.add_annotation(text=f"<b>{sym}{invested:,.0f}</b><br><span style='font-size:11px'>invested</span>",
                        showarrow=False, font=dict(color=INK, size=18))
-    return _style_fig(fig)
+    return _style_fig(fig, height=height)
 
 
 def _heatmap(corr: pd.DataFrame) -> go.Figure:
@@ -71,7 +75,8 @@ def _heatmap(corr: pd.DataFrame) -> go.Figure:
         colorbar=dict(title="ρ", outlinewidth=0, tickcolor=MUTED),
         hovertemplate="%{y} · %{x}<br>ρ = %{z:.2f}<extra></extra>",
     ))
-    fig.update_layout(title="Correlation of daily returns (1y)")
+    # No Plotly title — named by theme.section("How concentrated you really
+    # are") directly above it.
     fig.update_yaxes(autorange="reversed")
     return _style_fig(fig)
 
@@ -104,7 +109,6 @@ def _contribution_bar(contrib: pd.DataFrame, sym: str = "$") -> go.Figure:
                        "<br><b>%{x:+.2f}%</b> of your portfolio move<extra></extra>"),
     ))
     fig.update_layout(
-        title="Who moved your portfolio today",
         xaxis_title="Contribution to your portfolio's move (%)",
         showlegend=False,
     )
@@ -130,7 +134,6 @@ def _perf_line(perf: pd.DataFrame) -> go.Figure:
         hovertemplate="%{x|%b %d}<br>SPY %{y:.1f}<extra></extra>",
     ))
     fig.update_layout(
-        title="Growth of 100 — portfolio vs S&P 500 (1y)",
         legend=dict(orientation="h", y=1.12, x=0),
         xaxis_title="Date", yaxis_title="Index (start = 100)",
     )
@@ -202,13 +205,118 @@ def _render_positions_table(df: pd.DataFrame, sym: str) -> None:
 
 
 # --------------------------------------------------------------------------
+# The lede
+# --------------------------------------------------------------------------
+
+def _mover_sentence(contrib) -> str:
+    """One sentence naming the holding that actually moved the book today.
+
+    This used to live ~900px down the page under its own section heading. It is
+    the most useful sentence on the tab — it converts an abstract "+0.09%" into
+    a fact about something the reader owns — so it belongs beside the number it
+    explains, not below the fold.
+    """
+    if contrib is None or getattr(contrib, "empty", True) or len(contrib) < 2:
+        return ""
+    top = contrib.iloc[0]
+    verb = "added" if top["contribution_pct"] > 0 else "cost you"
+    return (f"<b>{top['ticker']}</b> {verb} "
+            f"<b>{abs(top['contribution_pct']):.2f}%</b> of today's move — it "
+            f"changed {top['day_change_pct']:+.2f}% while making up "
+            f"{top['weight_pct']:.0f}% of what you hold.")
+
+
+def _render_lede(summary: dict, sector_df, contrib, sym: str) -> None:
+    """The page's primary object.
+
+    Before this the dashboard opened on four equal-weight metric tiles and then
+    ran nine analyses down one column at the same visual weight, with a type
+    scale spanning about 3x top to bottom. Uniform weight across a narrow scale
+    range is precisely what "this looks basic" means, and no amount of
+    background treatment fixes it — the page had no primary object to look at.
+
+    So: ONE composed unit, asymmetric 7:5, carrying the four things a returning
+    user actually opens the app to learn — what it's worth, what it did today,
+    what caused that, and what it's made of. Everything below now reads as
+    evidence supporting a headline rather than as nine peers.
+
+    The headline is the user's MONEY, not the product's name. theme.py rule 6
+    already argued this when it cut the 44px masthead: on an Operate surface
+    the user's money is the headline and the product's name is a label. A hero
+    with the product name in it was specified for this pass and cut for exactly
+    that reason.
+
+    Rendered with st.html rather than st.markdown(unsafe_allow_html=True): this
+    is app-authored markup with no model text in it, and st.html does not run
+    the string through the markdown/LaTeX pass that has twice eaten dollar
+    signs in this project.
+    """
+    mover = _mover_sentence(contrib)
+
+    # Built from st.metric, NOT from hand-written HTML. The first version of
+    # this block rendered the headline in raw markup to get display-scale type,
+    # and the AppTest suite caught it immediately: the metric count dropped
+    # from 9 to 5. That count was standing in for something real — st.metric
+    # carries the label/value/delta relationship, the delta's direction arrow
+    # (the non-colour encoding gain/loss depends on), and the help tooltip.
+    # Hand-rolled HTML looked identical and silently threw all three away.
+    #
+    # Display scale is a CSS problem, so it is solved in CSS (rule 13), scoped
+    # by container key. The semantics stay native.
+    with st.container(key="rs_lede"):
+        left, right = st.columns([7, 5], vertical_alignment="top")
+        with left:
+            with st.container(key="rs_headline"):
+                st.metric(
+                    "Total value", _money(summary["total_value"], sym),
+                    delta=f"{_money(summary.get('day_change_abs'), sym)} "
+                          f"({_pct(summary.get('day_change_pct'))}) today",
+                    delta_color="normal",
+                    help="Everything you own here: the market value of your "
+                         "holdings plus uninvested cash. The change below it is "
+                         "today's equity move as a % of yesterday's total.",
+                )
+            if mover:
+                st.html(f"<p class='rs-lede-mover'>{mover}</p>")
+        with right:
+            try:
+                # 215, not the 340 default. The donut is the tallest thing in
+                # the row, so IT sets the block's height, and every pixel it
+                # exceeds the left column by becomes dead space at the bottom
+                # of that column. 340 opened a ~220px gap (split above and
+                # below, when the columns were centre-aligned); 250 still left
+                # ~65px. Measured against the left column's ~185px of content.
+                #
+                # Sizing the chart to the text is the fix. Padding the text to
+                # the chart would only have moved the emptiness somewhere else.
+                st.plotly_chart(_donut(sector_df, sym, height=215),
+                                width="stretch", config=theme.CHART_CONFIG)
+            except Exception as e:  # noqa: BLE001 — never take the lede down
+                st.caption(f"Sector chart unavailable: {e}")
+
+        # The meta strip. P&L, positions and cash were headline tiles of equal
+        # weight; they are context, not the headline, and demoting them is what
+        # gives the value above the room to be read at display size.
+        with st.container(key="rs_lede_meta", horizontal=True):
+            st.metric("Total P&L", _money(summary.get("total_pnl_abs"), sym),
+                      delta=_pct(summary.get("total_pnl_pct")),
+                      delta_color="normal",
+                      help="Return on cost basis (invested equity).")
+            st.metric("Positions", f"{summary['num_positions']}",
+                      help="Number of distinct holdings.")
+            st.metric("Cash", _money(summary.get("cash") or 0.0, sym),
+                      help="Uninvested cash. Included in total value, but not "
+                           "in the holdings table below.")
+
+
+# --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
 
 def render(portfolio: dict) -> None:
     # ---- Empty state -------------------------------------------------------
     if not portfolio or not portfolio.get("positions"):
-        st.info("📭 Upload a portfolio CSV or load the demo portfolio from the "
+        st.info("Upload a portfolio CSV or load the demo portfolio from the "
                 "sidebar to see your dashboard.")
         return
 
@@ -230,9 +338,10 @@ def render(portfolio: dict) -> None:
     if unresolved:
         offline = active_provider_name() == "fixture"
         st.warning(
-            f"⚠️ No market data for **{', '.join(unresolved)}** — shown as N/A below. "
+            f"No market data for **{', '.join(unresolved)}** — shown as N/A below. "
             + ("Not in the offline fixture; run without USE_MOCK to fetch it live."
-               if offline else "Check the symbol — it may be mistyped or delisted.")
+               if offline else "Check the symbol — it may be mistyped or delisted."),
+            icon=":material/warning:",
         )
 
     # ---- Benchmark history — ONE source (INTEGRATION_CONTRACT §3) ----------
@@ -254,26 +363,16 @@ def render(portfolio: dict) -> None:
         weights = {r.ticker: (r.weight_pct / 100.0)
                    for r in df.itertuples() if np.isfinite(r.weight_pct)}
 
-        # Two rows of two on narrow desktops rather than four across: at 1024px
-        # a 4-across row gave each tile 129px for a value needing 161px, and the
-        # headline number — the user's total portfolio value — silently
-        # ellipsis-clipped to "$47,379...".
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total value", _money(summary["total_value"], sym),
-                  help="Everything you own here: the market value of your "
-                       "holdings plus uninvested cash.")
-        c2.metric(
-            "Total P&L", _money(summary["total_pnl_abs"], sym),
-            delta=_pct(summary["total_pnl_pct"]), delta_color="normal",
-            help="Return on cost basis (invested equity).",
-        )
-        c3.metric(
-            "Today's change", _money(summary["day_change_abs"], sym),
-            delta=_pct(summary["day_change_pct"]), delta_color="normal",
-            help="Day's equity move as a % of yesterday's total account value.",
-        )
-        c4.metric("Positions", f"{summary['num_positions']}",
-                  help="Number of distinct holdings.")
+        # The day's biggest mover, needed by the lede below. Computed here
+        # rather than in its old position ~900px down the page, because the
+        # sentence it produces is the single most useful thing on the tab and
+        # it was previously below the fold.
+        try:
+            contrib = pm.day_move_contributions(df, portfolio.get("cash", 0.0))
+        except Exception:  # noqa: BLE001 — an insight, never a blocker
+            contrib = None
+
+        _render_lede(summary, sector_df, contrib, sym)
 
         # The holdings table sums to invested equity, but "Total value" adds
         # cash on top — so the two numbers visibly disagree by exactly the cash
@@ -310,21 +409,18 @@ def render(portfolio: dict) -> None:
         # it. These contributions sum to that number exactly (same denominator,
         # see pm.day_move_contributions), so the breakdown cannot disagree with
         # the tile above it.
+        # Reuses the `contrib` computed for the lede rather than recomputing it.
+        # The lede names the top mover; this section is the full distribution,
+        # so it opens on the tally instead of repeating that sentence verbatim
+        # 900px further down.
         try:
-            contrib = pm.day_move_contributions(df, portfolio.get("cash", 0.0))
-            if not contrib.empty and len(contrib) > 1:
+            if contrib is not None and not contrib.empty and len(contrib) > 1:
                 theme.section("Who moved you today")
-                top = contrib.iloc[0]
                 helped = contrib[contrib["contribution_pct"] > 0]
                 hurt = contrib[contrib["contribution_pct"] < 0]
-                verb = "added" if top["contribution_pct"] > 0 else "cost you"
                 st.markdown(
-                    f"**{top['ticker']}** {verb} "
-                    f"**{abs(top['contribution_pct']):.2f}%** of your portfolio's "
-                    f"move today — it changed {top['day_change_pct']:+.2f}% while "
-                    f"making up {top['weight_pct']:.0f}% of what you hold. "
-                    f"{len(helped)} holding{'s' if len(helped) != 1 else ''} helped, "
-                    f"{len(hurt)} held you back."
+                    f"**{len(helped)} holding{'s' if len(helped) != 1 else ''}** "
+                    f"helped, **{len(hurt)}** held you back."
                 )
                 st.plotly_chart(_contribution_bar(contrib, sym),
                                 width="stretch", config=theme.CHART_CONFIG)
@@ -342,40 +438,39 @@ def render(portfolio: dict) -> None:
         st.error(f"Could not compute portfolio summary: {e}")
         return
 
-    # ---- Sector donut + correlation heatmap (each isolated) ---------------
+    # ---- Correlation heatmap ----------------------------------------------
+    # The sector donut used to sit here beside the heatmap. It has moved into
+    # the lede, where it earns its place by turning the headline number into a
+    # picture; drawing it twice on one tab would have been the page telling the
+    # reader the same thing in the same way in two places. The heatmap takes
+    # the full width it always wanted — it is a matrix, and half a column was
+    # never enough for one.
     theme.section("How concentrated you really are")
-    left, right = st.columns(2)
-    with left:
-        try:
-            st.plotly_chart(_donut(sector_df, sym), width="stretch",
+    try:
+        corr = pm.correlation_matrix(contexts)
+        if corr is None or corr.shape[0] < 2 or corr.isna().all().all():
+            st.info("Correlation needs at least two holdings with price "
+                    "history — add another position to see the matrix.",
+                    icon=":material/grid_on:")
+        else:
+            st.plotly_chart(_heatmap(corr), width="stretch",
                             config=theme.CHART_CONFIG)
-        except Exception as e:  # noqa: BLE001
-            st.error(f"Sector chart unavailable: {e}")
-    with right:
-        try:
-            corr = pm.correlation_matrix(contexts)
-            if corr is None or corr.shape[0] < 2 or corr.isna().all().all():
-                st.info("📈 Correlation needs at least two holdings with price "
-                        "history — add another position to see the matrix.")
-            else:
-                st.plotly_chart(_heatmap(corr), width="stretch",
-                                config=theme.CHART_CONFIG)
-                avg_rho = pm.average_pairwise_correlation(corr)
-                pair = pm.most_correlated_pair(corr)
-                bits = []
-                if np.isfinite(avg_rho):
-                    bits.append(f"Average pairwise correlation **{avg_rho:.2f}**.")
-                if pair:
-                    a, b, v = pair
-                    bits.append(
-                        f"Most correlated: **{a}–{b}** at ρ = {v:.2f} — "
-                        + ("they move almost as one, so holding both adds little "
-                           "diversification." if v > 0.7 else
-                           "moderately linked."))
-                if bits:
-                    st.caption(" ".join(bits))
-        except Exception as e:  # noqa: BLE001
-            st.error(f"Correlation chart unavailable: {e}")
+            avg_rho = pm.average_pairwise_correlation(corr)
+            pair = pm.most_correlated_pair(corr)
+            bits = []
+            if np.isfinite(avg_rho):
+                bits.append(f"Average pairwise correlation **{avg_rho:.2f}**.")
+            if pair:
+                a, b, v = pair
+                bits.append(
+                    f"Most correlated: **{a}–{b}** at ρ = {v:.2f} — "
+                    + ("they move almost as one, so holding both adds little "
+                       "diversification." if v > 0.7 else
+                       "moderately linked."))
+            if bits:
+                st.caption(" ".join(bits))
+    except Exception as e:  # noqa: BLE001
+        st.error(f"Correlation chart unavailable: {e}")
 
     # ---- Portfolio beta (regressed on SPY, with R²) -----------------------
     theme.section("How much market risk you are carrying")

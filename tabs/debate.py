@@ -47,6 +47,37 @@ def _side_header(label: str, color: str, side: str) -> None:
     )
 
 
+def _render_stage_strip() -> None:
+    """The five calls, as a numbered strip, in their not-started state.
+
+    Sides are colour-coded to the same GOOD/BAD the rest of the tab uses, so a
+    reader can see the shape of the argument — bull, bear, bull, bear, judge —
+    before reading a word of it. The judge is deliberately neutral: it is the
+    one turn that belongs to neither side, and that is the point of it.
+    """
+    _SIDE = {"bull_opening": theme.GOOD, "bull_rebuttal": theme.GOOD,
+             "bear_opening": theme.BAD, "bear_rebuttal": theme.BAD,
+             "judge": theme.CATEGORICAL[0]}
+    cells = []
+    for i, (key, label) in enumerate(STAGES, start=1):
+        color = _SIDE.get(key, theme.MUTED)
+        cells.append(
+            f"<li style='flex:1 1 8.5rem;background:{theme.PAGE};"
+            f"border-left:2px solid {color};border-radius:{theme.RADIUS_PANEL};"
+            f"box-shadow:inset 0 1px 0 rgba(255,255,255,.06);"
+            f"padding:.65rem .8rem'>"
+            f"<div style='color:{color};font-size:.68rem;font-weight:700;"
+            f"letter-spacing:.09em'>STEP {i}</div>"
+            f"<div style='color:{theme.INK_2};font-size:.84rem;line-height:1.4;"
+            f"margin-top:.2rem'>{theme.safe(label)}</div></li>"
+        )
+    st.markdown(
+        "<ol style='display:flex;flex-wrap:wrap;gap:.6rem;list-style:none;"
+        "padding:0;margin:.2rem 0 .9rem'>" + "".join(cells) + "</ol>",
+        unsafe_allow_html=True,
+    )
+
+
 def _card_marker(side: str, color: str) -> None:
     """The per-card side marker. Small, uppercase, coloured — enough to tell a
     reader which column they are in without relying on the scrolled-away header
@@ -162,8 +193,8 @@ def _render_judge(judge: dict) -> None:
 
     parts = [
         "<div class='rs-verdict' style='background:{};border:1px solid {};"
-        "border-radius:14px;padding:1.35rem 1.5rem;margin-top:.5rem'>".format(
-            theme.SURFACE, theme.AXIS),
+        "border-radius:{};padding:1.35rem 1.5rem;margin-top:.5rem'>".format(
+            theme.SURFACE, theme.AXIS, theme.RADIUS_HERO),
         "<hr class='rs-verdict-rule'/>",
         # An <h3>, so a screen-reader user can navigate straight to the answer
         # rather than scrolling the whole exchange to find it.
@@ -190,9 +221,10 @@ def _render_judge(judge: dict) -> None:
             "letter-spacing:.05em'>Confidence in this verdict</span>"
             "<span style='color:{};font-weight:700;font-variant-numeric:tabular-nums'>"
             "{}%</span></div>".format(theme.MUTED, theme.INK, conf_i),
-            "<div style='height:6px;border-radius:999px;background:{};"
+            "<div style='height:6px;border-radius:{};background:{};"
             "overflow:hidden'><div style='height:100%;width:{}%;background:{};"
-            "border-radius:999px'></div></div>".format(theme.AXIS, conf_i, color),
+            "border-radius:{}'></div></div>".format(
+                theme.RADIUS_PILL, theme.AXIS, conf_i, color, theme.RADIUS_PILL),
             "<div style='font-size:11px;color:{};margin-top:.35rem'>"
             "How strongly the evidence in this debate favours that side — not a "
             "probability that the stock rises.</div>".format(theme.MUTED),
@@ -216,15 +248,15 @@ def _render_judge(judge: dict) -> None:
             "minmax(15rem,1fr));gap:.9rem;margin-bottom:1.1rem'>",
         ]
         for label, text, side_color in (
-                ("🐂 Weakest bull claim", weak_bull, theme.GOOD),
-                ("🐻 Weakest bear claim", weak_bear, theme.BAD)):
+                ("Weakest bull claim", weak_bull, theme.GOOD),
+                ("Weakest bear claim", weak_bear, theme.BAD)):
             parts.append(
-                "<div style='background:{};border-radius:10px;padding:.7rem .85rem'>"
+                "<div style='background:{};border-radius:{};padding:.7rem .85rem'>"
                 "<div style='color:{};font-weight:700;font-size:.82rem;"
                 "margin-bottom:.3rem'>{}</div>"
                 "<div style='color:{};font-size:.86rem;line-height:1.5'>{}</div>"
-                "</div>".format(theme.PAGE, side_color, label, theme.INK_2,
-                                theme.safe(text or "—")))
+                "</div>".format(theme.PAGE, theme.RADIUS_PANEL, side_color, label,
+                                theme.INK_2, theme.safe(text or "—")))
         parts.append("</div>")
 
     falsifiers = judge.get("falsifiers") or []
@@ -243,14 +275,14 @@ def _render_judge(judge: dict) -> None:
     key_uncertainty = judge.get("key_uncertainty")
     if key_uncertainty:
         parts.append(
-            "<div style='margin-top:1.1rem;padding:.7rem .85rem;border-radius:10px;"
+            "<div style='margin-top:1.1rem;padding:.7rem .85rem;border-radius:{};"
             "background:{};border:1px solid {}'>"
             "<span style='color:{};font-weight:700;font-size:.82rem'>"
             "Key uncertainty</span>"
             "<div style='color:{};margin-top:.25rem;font-size:.88rem;"
             "line-height:1.55;max-width:68ch'>{}</div></div>".format(
-                theme.PAGE, theme.WARN, theme.WARN, theme.INK_2,
-                theme.safe(key_uncertainty)))
+                theme.RADIUS_PANEL, theme.PAGE, theme.WARN, theme.WARN,
+                theme.INK_2, theme.safe(key_uncertainty)))
 
     parts.append("</div>")
     st.markdown("".join(parts), unsafe_allow_html=True)
@@ -301,19 +333,19 @@ def _render_debate(result: dict) -> None:
     st.markdown("### Opening arguments")
     open_l, open_r = st.columns(2)
     with open_l:
-        _side_header("🐂 Bull", theme.GOOD, "bull")
+        _side_header("Bull", theme.GOOD, "bull")
         _render_opening(bull.get("opening"), theme.GOOD, "bull")
     with open_r:
-        _side_header("🐻 Bear", theme.BAD, "bear")
+        _side_header("Bear", theme.BAD, "bear")
         _render_opening(bear.get("opening"), theme.BAD, "bear")
 
     st.markdown("### Rebuttals")
     reb_l, reb_r = st.columns(2)
     with reb_l:
-        _side_header("🐂 Bull rebuts", theme.GOOD, "bull")
+        _side_header("Bull rebuts", theme.GOOD, "bull")
         _render_rebuttal(bull.get("rebuttal"), theme.GOOD, "bull")
     with reb_r:
-        _side_header("🐻 Bear rebuts", theme.BAD, "bear")
+        _side_header("Bear rebuts", theme.BAD, "bear")
         _render_rebuttal(bear.get("rebuttal"), theme.BAD, "bear")
 
 
@@ -335,7 +367,7 @@ def render(context: dict) -> None:
     # ---- Header -----------------------------------------------------------
     head_l, head_r = st.columns([3, 1])
     with head_l:
-        st.header(f"⚔️ Bull vs Bear — {name}")
+        st.header(f":material/balance: Bull vs Bear — {name}")
         st.caption(f"{ticker} · two AI analysts argue from the SAME data; an "
                    f"impartial judge scores it.")
     with head_r:
@@ -357,14 +389,25 @@ def render(context: dict) -> None:
         # Say what the work IS before asking for 25 seconds of the user's time.
         # That this is a five-call orchestration is the most impressive fact
         # about the engine, and the interface never used to mention it.
-        st.markdown(
-            f"Two analysts argue **{theme.safe_md(name)}** from the same data, "
-            f"then an impartial judge scores the exchange on evidence."
-        )
+        # The orchestration, drawn — not described.
+        #
+        # This screen used to be a header, a lone price tile, ~130px of void, a
+        # sentence that near-verbatim repeated the caption 150px above it, and
+        # then a full-width button. The loudest object on the screen carrying
+        # the project's most substantial feature was a button, and it stayed
+        # that way for the whole demo until someone clicked.
+        #
+        # Rendering STAGES in its not-started condition puts the actual claim on
+        # screen — five sequential calls, each turn seeing everything before it
+        # — before anyone commits 25 seconds. It is the same move that makes the
+        # analyst's tool trace persuasive: show the machinery, do not assert it.
+        # STAGES is the SAME tuple that drives real progress below, so this
+        # strip cannot drift from what actually runs.
+        _render_stage_strip()
         st.caption(f"{len(STAGES)} sequential model calls · roughly 20–30 seconds · "
                    f"each turn sees everything said before it")
 
-        if st.button("⚔️ Start the debate", type="primary", use_container_width=True,
+        if st.button(":material/balance: Start the debate", type="primary", use_container_width=True,
                      key=f"start_debate_{ticker}"):
             progress = st.progress(0.0, text="Starting…")
             status_slot = st.empty()
