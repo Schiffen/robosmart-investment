@@ -360,3 +360,71 @@ def test_json_context_roundtrip(tmp_path):
     # history reconstructs as a real 1y OHLCV DataFrame
     assert loaded["NVDA"]["history"].shape[0] > 200
     assert list(loaded["NVDA"]["history"].columns) == ["Open", "High", "Low", "Close", "Volume"]
+
+
+# --------------------------------------------------------------------------
+# Day-move contributions
+# --------------------------------------------------------------------------
+
+def test_contributions_reconcile_with_the_headline_day_move(simple_portfolio,
+                                                            simple_contexts):
+    """THE invariant. The per-holding contributions must sum to exactly the
+    day_change_pct shown above them, or the breakdown quietly contradicts the
+    headline — the same class of failure as the holdings table summing to
+    $42,380 while "Total value" said $47,379."""
+    df = pm.position_values(simple_portfolio, simple_contexts)
+    cash = simple_portfolio["cash"]
+    summary = pm.portfolio_summary(df, cash)
+    contrib = pm.day_move_contributions(df, cash)
+
+    assert not contrib.empty
+    assert contrib["contribution_pct"].sum() == pytest.approx(
+        summary["day_change_pct"], abs=1e-9)
+    assert contrib["contribution_abs"].sum() == pytest.approx(
+        summary["day_change_abs"], abs=1e-6)
+
+
+def test_contributions_are_ordered_by_impact_not_by_percentage_move():
+    """A 10% move in a tiny position must rank BELOW a 1% move in a huge one.
+    This ordering is the whole pedagogical point: size times move, not move."""
+    portfolio = {
+        "positions": [
+            {"ticker": "BIG", "shares": 1000, "cost_basis": 100.0, "sector": "Tech"},
+            {"ticker": "TINY", "shares": 1, "cost_basis": 100.0, "sector": "Tech"},
+        ],
+        "cash": 0.0, "currency": "USD",
+    }
+    contexts = {
+        "BIG": _ctx("BIG", "Tech", current=101.0, day_change_pct=1.0),
+        "TINY": _ctx("TINY", "Tech", current=110.0, day_change_pct=10.0),
+    }
+    df = pm.position_values(portfolio, contexts)
+    contrib = pm.day_move_contributions(df, 0.0)
+
+    assert list(contrib["ticker"]) == ["BIG", "TINY"]
+    # ...even though TINY moved ten times as much in percentage terms.
+    assert contrib.iloc[1]["day_change_pct"] > contrib.iloc[0]["day_change_pct"]
+
+
+def test_contributions_signs_follow_the_holdings():
+    df = pm.position_values(
+        {"positions": [
+            {"ticker": "UP", "shares": 10, "cost_basis": 1.0, "sector": "Tech"},
+            {"ticker": "DOWN", "shares": 10, "cost_basis": 1.0, "sector": "Tech"}],
+         "cash": 0.0, "currency": "USD"},
+        {"UP": _ctx("UP", "Tech", 100.0, 5.0),
+         "DOWN": _ctx("DOWN", "Tech", 100.0, -5.0)})
+    contrib = pm.day_move_contributions(df, 0.0).set_index("ticker")
+    assert contrib.loc["UP", "contribution_pct"] > 0
+    assert contrib.loc["DOWN", "contribution_pct"] < 0
+
+
+def test_contributions_degrade_to_empty_not_to_zeros():
+    """No priced holding must yield an empty frame, never a table of fake 0.00%
+    rows that look like 'nothing moved today'."""
+    df = pm.position_values(
+        {"positions": [{"ticker": "X", "shares": 1, "cost_basis": 1.0,
+                        "sector": "Tech"}], "cash": 0.0, "currency": "USD"},
+        {})                                    # no context at all
+    assert pm.day_move_contributions(df, 0.0).empty
+    assert pm.day_move_contributions(pd.DataFrame(), 100.0).empty

@@ -228,6 +228,66 @@ def portfolio_summary(df: pd.DataFrame, cash: float) -> dict:
     }
 
 
+def day_move_contributions(df: pd.DataFrame, cash: float) -> pd.DataFrame:
+    """Which holdings actually moved the portfolio today, and by how much.
+
+    The dashboard could say the book moved +0.54% but not WHICH holding did it —
+    a beginner's most immediate follow-up question, and the natural bridge from
+    the portfolio view to the single-stock "what happened today" view.
+
+    A holding's contribution is its own dollar move measured against YESTERDAY'S
+    WHOLE ACCOUNT (prior equity + cash) — deliberately the same denominator
+    `portfolio_summary` uses for `day_change_pct`. That is what makes these
+    numbers reconcile: the contributions sum to the headline day move exactly,
+    so the breakdown can never quietly disagree with the number above it.
+
+    A big percentage move in a small position is NOT a big contribution, and
+    this is precisely the intuition the table is here to build.
+
+    Returns ticker, contribution_pct, contribution_abs, day_change_pct,
+    weight_pct — sorted by absolute contribution, largest mover first. Holdings
+    with no usable price are dropped rather than shown as a fake zero.
+    """
+    cols = ["ticker", "contribution_pct", "contribution_abs",
+            "day_change_pct", "weight_pct"]
+    if df is None or df.empty:
+        return pd.DataFrame(columns=cols)
+
+    cash = _safe_float(cash)
+    cash = 0.0 if not np.isfinite(cash) else cash
+
+    mv = df["market_value"].to_numpy(dtype=float)
+    dcp = df["day_change_pct"].to_numpy(dtype=float)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        prev_val = mv / (1.0 + dcp / 100.0)
+    prev_val = np.where(np.isfinite(prev_val), prev_val, np.nan)
+
+    if not np.isfinite(prev_val).any():
+        return pd.DataFrame(columns=cols)
+
+    prev_total = float(np.nansum(prev_val)) + cash
+    if not (prev_total > 0):
+        return pd.DataFrame(columns=cols)
+
+    contribution_abs = mv - prev_val
+    contribution_pct = contribution_abs / prev_total * 100.0
+
+    out = pd.DataFrame({
+        "ticker": df["ticker"].to_numpy(),
+        "contribution_pct": contribution_pct,
+        "contribution_abs": contribution_abs,
+        "day_change_pct": dcp,
+        "weight_pct": df["weight_pct"].to_numpy(dtype=float),
+    })
+    out = out[np.isfinite(out["contribution_pct"].to_numpy(dtype=float))]
+    if out.empty:
+        return pd.DataFrame(columns=cols)
+    return (out.reindex(out["contribution_pct"].abs()
+                        .sort_values(ascending=False).index)
+               .reset_index(drop=True))
+
+
 # --------------------------------------------------------------------------
 # 2. Sector breakdown & concentration
 # --------------------------------------------------------------------------
@@ -409,7 +469,20 @@ def _aligned_portfolio_returns(contexts: dict, weights: dict,
         w = np.ones(len(series))
     w = w / w.sum()
 
-    port_ret = rets[list(series.keys())].to_numpy() @ w
+    # errstate: this matmul emits "divide by zero" / "overflow" / "invalid"
+    # RuntimeWarnings even when every input and output is finite. matmul does
+    # not divide — these are STALE FPU STATUS FLAGS, set by earlier unchecked
+    # operations (inside pandas) and only surfaced here because BLAS checks the
+    # flag register after the call. Verified: inputs finite, output finite,
+    # returns in a sane range. Suppressing them at the source keeps the console
+    # readable; the guard below is what actually protects correctness, so a real
+    # non-finite value still cannot escape.
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        port_ret = rets[list(series.keys())].to_numpy() @ w
+    # If a genuine inf/NaN ever does appear, make it NaN rather than letting it
+    # propagate: every downstream consumer already handles NaN as "unavailable",
+    # whereas an inf silently poisons a mean or a standard deviation.
+    port_ret = np.where(np.isfinite(port_ret), port_ret, np.nan)
     return pd.DataFrame({"Portfolio": port_ret, "SPY": rets["SPY"].to_numpy()},
                         index=rets.index)
 
