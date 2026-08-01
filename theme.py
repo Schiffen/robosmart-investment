@@ -240,7 +240,25 @@ CHART_CONFIG = {"displayModeBar": False, "displaylogo": False,
                 "staticPlot": False, "scrollZoom": False}
 
 
-def badge(text: str, kind: str = "medium") -> str:
+# A NEUTRAL ramp for strength, used where green/red already mean something else.
+#
+# On the Bull vs Bear exchange the two sides are now colour-coded territories,
+# so GOOD/BAD read as "bull/bear" there — and a claim's strength badge drawn
+# from the same palette put a GREEN "HIGH" pill inside the bear's red field,
+# where it looks like good news rather than a strong argument. Two meanings for
+# one colour on one screen; the newer meaning wins, so strength gets its own
+# scale. Encoded by lightness, which is the natural ordering for a magnitude.
+# Light TEXT on a dark chip, not dark ink on a light fill like the status
+# badges. The fill version cannot work here: a three-step ramp dark enough to
+# order by lightness puts "low" on a fill where the PAGE-coloured label
+# measures 1.65:1. Inverting it means all three tiers order by lightness AND
+# all three clear 4.5:1 — the ramp is in the ink, where there is room for it.
+STRENGTH_COLOR = {"high": INK, "medium": INK_2, "low": MUTED,
+                  "strong": INK, "weak": MUTED}
+STRENGTH_CHIP = "#232320"   # the shared chip behind all three tiers
+
+
+def badge(text: str, kind: str = "medium", *, neutral: bool = False) -> str:
     """Return an HTML pill for a strength/likelihood/side label. Use with
     st.markdown(..., unsafe_allow_html=True). `kind` is high/medium/low or
     bull/bear/inconclusive; unknown kinds fall back to muted.
@@ -248,11 +266,18 @@ def badge(text: str, kind: str = "medium") -> str:
     12px, not 11px: this pill carries the judge's verdict — the payoff of a
     five-call orchestration — and 11px was below any practical UI floor.
     """
-    color = LEVEL_COLOR.get(kind.lower(), SIDE_COLOR.get(kind.lower(), MUTED))
-    return (f"<span class='rs-badge' style='background:{color};color:{PAGE};"
-            f"padding:3px 10px;border-radius:{RADIUS_PILL};font-size:12px;"
-            f"font-weight:700;letter-spacing:.02em;white-space:nowrap'>"
-            f"{safe(text)}</span>")
+    if neutral:
+        ink = STRENGTH_COLOR.get(kind.lower(), MUTED)
+        fill, border = STRENGTH_CHIP, f"border:1px solid {ink}55;"
+    else:
+        ink = PAGE
+        fill = LEVEL_COLOR.get(kind.lower(),
+                               SIDE_COLOR.get(kind.lower(), MUTED))
+        border = ""
+    return (f"<span class='rs-badge' style='background:{fill};color:{ink};"
+            f"{border}padding:3px 10px;border-radius:{RADIUS_PILL};"
+            f"font-size:12px;font-weight:700;letter-spacing:.02em;"
+            f"white-space:nowrap'>{safe(text)}</span>")
 
 
 def fmt_money(x, sym: str = "$") -> str:
@@ -812,6 +837,51 @@ section.stMain .st-key-rs_lede_meta [data-testid="stMetricLabel"] {{
 }}
 section.stMain .st-key-rs_lede_meta [data-testid="stMetricDelta"] {{
   font-size: .8rem;
+}}
+
+/* ---- 14. Bull vs Bear as a confrontation ------------------------------
+   The two sides were visually identical `st.container(border=True)` boxes in
+   two columns, separated by a 10px uppercase word — so the most distinctive
+   thing this product does read as a two-column list of grey boxes.
+
+   Each side now holds tinted TERRITORY. The tint is strongest at the outer
+   edge and fades toward the centre gutter, so the block reads as two forces
+   meeting in the middle rather than as two lists side by side. A solid 2px
+   outer wall in the side's own colour anchors it.
+
+   Deliberately no radius and no shadow: this is a FIELD, not a card. The claim
+   cards inside it are the cards, and a card containing cards is how an
+   interface starts to look assembled. Colour is never doing this alone — the
+   side header names it, and every card repeats a `_card_marker`, because this
+   header scrolls away after about one screen. */
+section.stMain .st-key-rs_side_bull_open,
+section.stMain .st-key-rs_side_bull_reb {{
+  background: linear-gradient(90deg, rgba(27,164,32,.11) 0%, rgba(27,164,32,0) 82%);
+  border-left: 2px solid {GOOD};
+  padding: .85rem 1rem 1rem;
+}}
+section.stMain .st-key-rs_side_bear_open,
+section.stMain .st-key-rs_side_bear_reb {{
+  background: linear-gradient(270deg, rgba(229,102,95,.11) 0%, rgba(229,102,95,0) 82%);
+  border-right: 2px solid {BAD};
+  padding: .85rem 1rem 1rem;
+}}
+/* The claim cards inside sit ON the tint, so they need their own opaque
+   surface or the tint shows through and the cards stop separating from the
+   field they sit in.
+
+   The selector matters and was got wrong once here:
+   `[data-testid="stVerticalBlockBorderWrapper"]` is a testid that does NOT
+   exist in Streamlit 1.60 — it is absent from the whole installed package, so
+   the rule matched nothing and looked fine in code review. What
+   st.container(border=True) actually emits is a stLayoutWrapper holding a
+   stVerticalBlock, with the border on the inner element. Verified in the real
+   DOM; grep the installed frontend bundle before trusting a testid. */
+section.stMain :is(.st-key-rs_side_bull_open, .st-key-rs_side_bull_reb,
+                   .st-key-rs_side_bear_open, .st-key-rs_side_bear_reb)
+  [data-testid="stLayoutWrapper"] > [data-testid="stVerticalBlock"] {{
+  background: {SURFACE};
+  border-radius: {RADIUS_PANEL};
 }}
 
 /* ---- 12. Tabular figures ----------------------------------------------

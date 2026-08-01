@@ -40,8 +40,20 @@ def _side_header(label: str, color: str, side: str) -> None:
     """Side header. `side` is repeated on every card below as a marker, because
     this header scrolls away after roughly one screen and the claim cards were
     otherwise identical grey boxes across ~4,200px of scroll."""
+    # 1.3rem (19.5px at the 15px root), not 1.05rem. It labels a whole column
+    # of the exchange and was set smaller than the body copy under it.
+    #
+    # It was raised on a contrast argument that turned out to be wrong, and the
+    # correction is worth keeping: the estimate said this label sat at 4.04:1
+    # on the tinted field, failing normal text and needing >=18.66px to qualify
+    # for the 3:1 large-text threshold. Measured against the actually-painted
+    # pixel it is 5.02:1 (bull) and 5.64:1 (bear) — it passes at ANY size. The
+    # estimate had composited the tint over the page's worst-case wash, which
+    # is not what is behind this element. Estimating a background is not
+    # measuring one; the size is kept because it is right typographically.
     st.markdown(
-        f"<h4 style='color:{color};margin:0 0 .35rem 0;font-size:1.05rem'>"
+        f"<h4 style='color:{color};margin:0 0 .5rem 0;font-size:1.3rem;"
+        f"font-weight:700;letter-spacing:-.01em'>"
         f"{theme.safe(label)}</h4>",
         unsafe_allow_html=True,
     )
@@ -123,8 +135,12 @@ def _render_opening(opening: dict, color: str, side: str) -> None:
                     f"{theme.safe(evidence)}</span>",
                     unsafe_allow_html=True,
                 )
+            # neutral=True: on this screen green and red mean BULL and BEAR,
+            # so a green "HIGH" strength pill inside the bear's red field read
+            # as good news rather than as a strong argument.
             strength = str(claim.get("strength") or "medium").lower()
-            st.markdown(theme.badge(strength.upper(), strength), unsafe_allow_html=True)
+            st.markdown(theme.badge(strength.upper(), strength, neutral=True),
+                        unsafe_allow_html=True)
 
 
 def _render_rebuttal(rebuttal: dict, color: str, side: str) -> None:
@@ -330,23 +346,37 @@ def _render_debate(result: dict) -> None:
         "other was given. The judge scored the exchange on evidence, not on tone."
     )
 
+    # Each side gets its own tinted TERRITORY, keyed so CSS rule 14 can reach
+    # it. Before this the two sides were visually identical bordered boxes in
+    # two columns, distinguished only by a 10px uppercase word — so the app's
+    # most distinctive feature, two analysts arguing the same evidence, read as
+    # a two-column list. The confrontation is the image; it should be legible
+    # before a word of it is read.
+    #
+    # A tinted field, deliberately NOT a card: no radius, no shadow, tint
+    # fading toward the centre gutter. The claim cards inside are the cards. A
+    # card holding cards is how an interface starts looking assembled.
     st.markdown("### Opening arguments")
-    open_l, open_r = st.columns(2)
+    open_l, open_r = st.columns(2, gap="medium")
     with open_l:
-        _side_header("Bull", theme.GOOD, "bull")
-        _render_opening(bull.get("opening"), theme.GOOD, "bull")
+        with st.container(key="rs_side_bull_open"):
+            _side_header("Bull", theme.GOOD, "bull")
+            _render_opening(bull.get("opening"), theme.GOOD, "bull")
     with open_r:
-        _side_header("Bear", theme.BAD, "bear")
-        _render_opening(bear.get("opening"), theme.BAD, "bear")
+        with st.container(key="rs_side_bear_open"):
+            _side_header("Bear", theme.BAD, "bear")
+            _render_opening(bear.get("opening"), theme.BAD, "bear")
 
     st.markdown("### Rebuttals")
-    reb_l, reb_r = st.columns(2)
+    reb_l, reb_r = st.columns(2, gap="medium")
     with reb_l:
-        _side_header("Bull rebuts", theme.GOOD, "bull")
-        _render_rebuttal(bull.get("rebuttal"), theme.GOOD, "bull")
+        with st.container(key="rs_side_bull_reb"):
+            _side_header("Bull rebuts", theme.GOOD, "bull")
+            _render_rebuttal(bull.get("rebuttal"), theme.GOOD, "bull")
     with reb_r:
-        _side_header("Bear rebuts", theme.BAD, "bear")
-        _render_rebuttal(bear.get("rebuttal"), theme.BAD, "bear")
+        with st.container(key="rs_side_bear_reb"):
+            _side_header("Bear rebuts", theme.BAD, "bear")
+            _render_rebuttal(bear.get("rebuttal"), theme.BAD, "bear")
 
 
 # --------------------------------------------------------------------------
@@ -356,8 +386,8 @@ def _render_debate(result: dict) -> None:
 def render(context: dict) -> None:
     # ---- Empty state ------------------------------------------------------
     if not context or not context.get("ticker"):
-        st.info("🔎 Pick a ticker from the sidebar to stage a Bull vs Bear debate "
-                "on it.")
+        st.info("Pick a ticker from the sidebar to stage a Bull vs Bear debate "
+                "on it.", icon=":material/search:")
         return
 
     ticker = context.get("ticker")

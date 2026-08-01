@@ -280,16 +280,17 @@ def _render_lede(summary: dict, sector_df, contrib, sym: str) -> None:
                 st.html(f"<p class='rs-lede-mover'>{mover}</p>")
         with right:
             try:
-                # 215, not the 340 default. The donut is the tallest thing in
+                # 185, not the 340 default. The donut is the tallest thing in
                 # the row, so IT sets the block's height, and every pixel it
                 # exceeds the left column by becomes dead space at the bottom
                 # of that column. 340 opened a ~220px gap (split above and
                 # below, when the columns were centre-aligned); 250 still left
-                # ~65px. Measured against the left column's ~185px of content.
+                # ~64px, because at 215 the donut still ran 31px taller than the
+                # left column's measured 183.8px of content. 185 matches it.
                 #
                 # Sizing the chart to the text is the fix. Padding the text to
                 # the chart would only have moved the emptiness somewhere else.
-                st.plotly_chart(_donut(sector_df, sym, height=215),
+                st.plotly_chart(_donut(sector_df, sym, height=185),
                                 width="stretch", config=theme.CHART_CONFIG)
             except Exception as e:  # noqa: BLE001 — never take the lede down
                 st.caption(f"Sector chart unavailable: {e}")

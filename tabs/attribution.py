@@ -200,7 +200,8 @@ def _render_explanation(result: dict) -> None:
 def render(context: dict) -> None:
     # ---- Empty state -------------------------------------------------------
     if context is None:
-        st.info("🔎 Pick a stock from the sidebar to see what drove its move today.")
+        st.info("Pick a stock from the sidebar to see what drove its move today.",
+                icon=":material/search:")
         return
 
     ticker = (context.get("ticker") or "—").upper()

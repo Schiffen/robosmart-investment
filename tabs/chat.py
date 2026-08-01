@@ -172,7 +172,7 @@ def render(portfolio: dict) -> None:
         st.markdown(theme.safe_md(answer))
 
         if result.get("is_mock"):
-            st.caption("🧪 Demo mode — no API key set, so the wording is "
+            st.caption(":material/science: Demo mode — no API key set, so the wording is "
                        "recorded. The figures are computed live from your book.")
         if result.get("stopped_early"):
             st.caption("I stopped after several rounds of checking — the answer "
