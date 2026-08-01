@@ -469,11 +469,14 @@ h2.rs-section {{
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  /* .035, not .018. At .018 an A/B pixel diff proved the grid was technically
-     rendering — 72,000 pixels differing on a clean 64px pitch — while being
-     perceptually indistinguishable to a viewer at 1440. Twelve lines of CSS
-     that you cannot point at in a defence is not restraint, it is waste; it
-     either registers or it comes out. */
+  /* .025 — arrived at from both directions. At .018 an A/B pixel diff proved
+     the grid was technically rendering (72,000 pixels differing on a clean
+     64px pitch) while being perceptually invisible at 1440; CSS you cannot
+     point at in a defence is waste, not restraint. But .035 went too far the
+     other way: this overlay composites into the effective page background, and
+     at .035 it was contributing about a third of the luminance lift that
+     pushed MUTED-on-page below AA. .025 registers and costs ~0.14 of a ratio
+     point. Decoration that changes a contrast measurement is not decoration. */
   background-image:
     repeating-linear-gradient(to right, rgba(255,255,255,.025) 0 1px, transparent 1px 64px),
     repeating-linear-gradient(to bottom, rgba(255,255,255,.025) 0 1px, transparent 1px 64px);
