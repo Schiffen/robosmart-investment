@@ -120,8 +120,63 @@ API: it picks the right tool per question, calls tools in parallel when they're
 independent, refuses advice cleanly ("Should I buy more NVDA?" → zero tool calls, offers
 the legitimate alternative), and corrected a false premise rather than confabulating
 ("why am I down?" → "your portfolio actually looks slightly up"). The UI shows every tool
-call behind a "How I worked this out" expander — that trace is what makes the grounding
-visible rather than merely claimed.
+call in a "How I worked this out" panel — that trace is what makes the grounding visible
+rather than merely claimed. It is **open by default** as of 2026-08-01, with an
+always-visible strip naming which tools ran: collapsed, it was one click from invisible,
+and nobody opens an expander during a five-minute demo.
+
+### Design pass 2 — surfaces and composition (2026-08-01)
+
+The app was correct, accessible and measured, and still read as basic. Diagnosis, which
+is the transferable part: **it had exactly one surface.** The plane was painted and the
+only things above it were Plotly's own rectangles, so the headline numbers, the prose and
+the holdings table all sat on flat black — page → chart, where a designed dark product has
+page → panel → raised element. It also had no primary object: nine analyses, one column,
+all at content width, type scale ~3× top to bottom.
+
+The session was originally specced as atmosphere (animated aurora, film grain, a hero
+masthead). A review argued that was aimed at the wrong layer and was right — **light
+behind a flat plane is a lit flat plane.** Atmosphere was cut to a static wash plus a dim
+grid, and the effort went to structure:
+
+- **The lede block** — one composed unit, asymmetric 7:5. Total value at display scale in
+  JetBrains Mono, today's move beneath it, and the sentence naming the holding that caused
+  it (already computed by `pm.day_move_contributions`, previously ~900px down the page).
+  Type scale now ~6×. Built on `st.metric`, **not** hand-written HTML — the first version
+  used raw markup for display type and the AppTest suite caught it instantly (metric count
+  9 → 5), because that count stood for the label/value/delta relationship, the delta's
+  direction arrow and the help tooltip. Display scale is a CSS problem.
+- **Panels lit from above** — top edge, no full border, bottom shadow. Deliberately not
+  the shadcn/Bootstrap card, which applied uniformly reads as a component library. Charts
+  paint **no background at all** now, so the panel is the surface and the square-in-round
+  corner mismatch cannot occur.
+- Radii unified from five near-miss values to three tokens; `.streamlit/config.toml` went
+  from 5 theme keys to 28; emoji swept to Material Symbols (notice icons are inline SVG on
+  `currentColor` — three distinct *shapes*, and no longer a font the OS picks).
+- The debate's empty state draws `STAGES` as a five-step strip instead of ~130px of void
+  above a button, from the same tuple that drives real progress so it cannot drift.
+
+**Two latent bugs surfaced only by rendering the result and looking at it:**
+
+1. Every untitled Plotly chart rendered the literal word **"undefined"** as its heading.
+   `style_fig` set `title=dict(font=...)` unconditionally, so plotly.py emitted a title
+   with a font and no text and Streamlit's wrapper did `String(undefined)`. It had done so
+   for a long time, hidden inside the 48px margin reserved for titles.
+2. **"Ask the analyst" rendered with none of the design system.** All 44 CSS rules were
+   scoped to `[data-testid="stMain"]`, and Streamlit renames that testid to
+   `stAppScrollToBottomContainer` on any view using `st.chat_input`. Silent; h1 at 41px
+   against 22px everywhere else. **Scope to `section.stMain`** — the class survives the
+   rename, the testid does not.
+
+**Streamlit 1.60 ships its own agent skill, version-matched, already on disk:**
+`.venv/lib/python3.12/site-packages/streamlit/.agents/skills/developing-with-streamlit/`
+— 25 references (`theme.md`, `design.md`, `custom-components-v2.md`), six dashboard
+templates and twelve ready-made theme configs. Prefer it over any blog post.
+
+`.claude/agents/` now holds three reviewers with deliberately non-overlapping remits —
+`design-director`, `contrast-auditor`, `streamlit-realist` — each instructed to stay out
+of the others' territory so their feedback does not collapse into the same generic notes.
+They found most of what is listed above. Note they only register at session start.
 
 **Numerical note:** `_aligned_portfolio_returns` wraps its matmul in `np.errstate`. Those
 "divide by zero in matmul" warnings were **stale FPU status flags** (matmul doesn't
@@ -155,10 +210,11 @@ global config is a *different* account and must stay untouched. Never run
 |---|---|
 | Delete old `roischiffen/robosmart-investment` | still public; needs `delete_repo` scope or the browser |
 | Rotate `ANTHROPIC_API_KEY` once more before submission | current key leaked into a session transcript (local only) |
-| Rewrite `docs/summary_document.pdf` | stale — predates the data layer, profiles and deployment. **20% of the grade** |
-| Record the 3–5 min demo video | script exists at `docs/video_script.md`; not recorded |
+| Rewrite `docs/summary_document.pdf` | stale — predates the data layer, profiles, deployment, the analyst agent AND the 2026-08-01 design pass. **20% of the grade — the biggest single lever left** |
+| Record the 3–5 min demo video | `docs/video_script.md` is itself stale: it describes a UI that no longer exists (no lede block, no stage strip, emoji router). Re-script before recording |
 | Submit the course survey | **5% of the grade**, free points |
-| Deadline | **still unknown — ask before planning large work** |
+| Deadline | **weeks away** as of 2026-08-01 (user-confirmed). No longer a blocker on planning large work |
+| Bull vs Bear confrontation panels | the two sides are still visually identical bordered boxes. Ungraded, but it is the screen the demo video shows off |
 
 ### Grading reality (drives prioritisation)
 
@@ -166,10 +222,14 @@ global config is a *different* account and must stay untouched. Never run
 20% documentation · 5% defense · 5% survey. **UI/design is not a graded line item** — it
 serves the defense and the "complete product" impression only.
 
-The AI layer is currently a **prompt chain, not an agent**: five sequential calls for the
-debate, one for the explainer, zero tools and zero loops. Adding a tool-using chat agent
-is the single change that targets the 20% criterion directly, and the course brief names
-exactly that as its worked example.
+The 20% AI criterion is **answered** — this section used to say "the AI layer is currently
+a prompt chain, not an agent … adding a tool-using chat agent is the single change that
+targets the 20% criterion directly." That work is done and verified (see Current state).
+The AI layer is now deliberately **two shapes**: a fixed chain (five debate calls, one
+explainer) and a tool-using agent that chooses among seven tools with a bounded loop.
+
+Nothing else in the build buys 20%-criterion points, so remaining effort is better spent
+on the **20% documentation** line, which is still stale.
 
 ### Design phase (in progress)
 
@@ -210,10 +270,35 @@ chrome (`.stApp` overflow, sidebar transition, dead maplibregl CSS) — zero app
 - **Contrast**: loss-red 4.05 → 5.92:1 (now balanced with gain-green's 5.79); waterfall
   connectors 1.24 → 3.24:1; focus ring added to the router, which had none at all.
 
-**Verify colours against the COMPUTED background, never the declared token.** A detector
-flagged white-on-`#3987e5` at 3.64:1 on primary buttons. Streamlit darkens primaryColor to
-`rgb(24,96,185)` for the button, where white measures 6.15:1 — and the "obvious fix" (ink
-on blue) measures 3.16:1, worse than the reported problem. Measured on the running app.
+**Verify colours against the COMPUTED background — and in the STATE you are claiming.**
+
+⚠️ *This paragraph previously asserted the opposite conclusion and was wrong. It is kept
+in corrected form rather than deleted, because the wrong version is what stopped the bug
+being fixed for two revisions.*
+
+A detector flagged white-on-`#3987e5` at 3.64:1 on primary buttons. This file used to
+answer: "Streamlit darkens primaryColor to `rgb(24,96,185)` for the button, where white
+measures 6.15:1, so the detector is wrong." Re-measured in the live DOM: the resting
+background is `rgb(57,135,229)` — **the declared value, not darkened**. `rgb(24,96,185)`
+is Streamlit's **:hover** background. The original measurement sampled a hovered button
+and generalised it to the control, and the detector had been right the whole time.
+
+`primaryColor` is now **`#1d74dd`**, where white measures 4.57:1 and passes. The label is
+15px/650, which is not WCAG "large text" (≥24px, or ≥18.66px bold), so 4.5:1 is the
+applicable threshold and 3:1 was never available.
+
+Second-order trap found while fixing it: **`primaryColor` serves two opposite roles** — a
+*fill* behind white on a button, and *ink* on a 10% tint for the selected
+`segmented_control` item. Darkening it fixed the button and pushed the router from a
+passing 4.85:1 to 3.02:1. One token cannot be both fill and ink; the router's ink is now
+decoupled (white on that tint, 17.99:1 measured).
+
+**There are now THREE surfaces to measure against, not two.** `SURFACE #1a1a19`,
+`PAGE #0d0d0d`, and the page **composite `#222530`** — what the page actually is at its
+lightest once the wash and grid overlay are composited, 4.6× `PAGE`'s luminance. Text on a
+panel is safe by construction (the panel gradient only runs darker than `SURFACE`); text
+directly on the page is not. `MUTED` failed exactly this way (5.41 → 4.27:1) and is now
+`#9d9b94`.
 
 `mock_debate.json` had its evidence strings reformatted from machine field names
 (`revenue_growth of 22%`) to spoken phrasing, matching the new prompt rule. Numbers and

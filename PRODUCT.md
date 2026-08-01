@@ -58,11 +58,33 @@ not hide it.
 
 ## Capabilities and Constraints
 
-**Stack (existing):** Python + Streamlit. This is a hard design constraint. Streamlit
-custom components render inside isolated iframes and cannot call one another, so
-orchestrated cross-component motion, shared animation timelines, and page-load
-choreography are **not achievable in the current stack**. This directly limits the
-differentiator stated under Positioning.
+**Stack (existing):** Python + Streamlit.
+
+⚠️ **Correction (2026-08-01).** This section previously read: *"Streamlit custom components
+render inside isolated iframes and cannot call one another, so orchestrated cross-component
+motion, shared animation timelines, and page-load choreography are not achievable in the
+current stack."* That was true of Components **v1** and is no longer true. Streamlit 1.60
+ships **Components v2**, verified present in this environment:
+
+```
+st.components.v2.component(name, *, html=None, css=None, js=None, isolate_styles=True)
+```
+
+Streamlit's own bundled reference is explicit: *"`window.parent.postMessage(...)` — v1
+iframe communication; **CCv2 does not use iframes**."* It is Shadow DOM in the same
+document, with the app's theme piped in as `--st-*` custom properties, and
+`isolate_styles=False` puts a component in the light DOM outright. Real JavaScript — a
+shared GSAP timeline, canvas, WebGL — runs in the same document as the rest of the page.
+
+Consequence: **orchestrated motion is reachable in the current stack**, and the constraint
+that limited the differentiator stated under Positioning does not exist as written. It was
+also load-bearing for the migration question below, which should be re-argued on its own
+merits rather than on this.
+
+Remaining real constraints: Streamlit re-executes the script and rebuilds the DOM on every
+interaction (this app reruns on every sidebar touch), so any effect must survive a rerun —
+verified: a CSS animation on `stAppViewContainer` does survive, `startTime` constant and
+`currentTime` advancing, because Streamlit diffs that node rather than replacing it.
 
 - Five sample investor books, each with a claim about what it demonstrates that is
   enforced against the computed numbers by tests.
@@ -81,8 +103,17 @@ differentiator stated under Positioning.
 - Whether to migrate the frontend to React + FastAPI. The analytics layer would carry
   over untouched; the ~1,220 lines of Streamlit UI would be replaced. A scored critique
   found the surface's problems were overwhelmingly *not* Streamlit's fault, and they have
-  since been fixed in place — so the case for migrating now rests on motion ambition
-  alone, not on defect count.
+  since been fixed in place — so the case rested on motion ambition alone, not on defect
+  count.
+
+  **That last argument is now substantially weaker** (2026-08-01). It assumed orchestrated
+  motion was unreachable in Streamlit; Components v2 makes it reachable — see the
+  correction under Capabilities and Constraints. Combined with the recorded grading reality
+  that UI/design is not a graded line item, and with the second design pass demonstrating
+  that the surface's real problem was structural rather than framework-imposed, there is
+  currently **no argument for migrating that survives contact with the evidence**. Left
+  open rather than closed because it is the user's call, but it should be reopened only on
+  a reason that has not already been checked and found not to hold.
 
 **Decided since:**
 - The tool-using chat agent was built (`agents/analyst.py` + `agents/tools.py`). It is the
@@ -155,6 +186,14 @@ Current state, measured rather than assumed:
 
 - Loss-red was **4.05:1** against its `GOOD` counterpart's 5.79:1 — losses were literally
   harder to read than gains. Both are now ~5.9/5.8:1 and deliberately balanced.
+- The primary button label was **3.64:1 and failing AA**, and stayed that way for two
+  revisions because the project had recorded a measurement saying it passed at 6.15:1.
+  That measurement had sampled a **hovered** button. `primaryColor` is now `#1d74dd`
+  (4.57:1 at rest). Measure the state you are claiming, not only the element.
+- Adding a background wash changed what "on the page" means: the effective page colour at
+  its lightest is now `#222530`, 4.6× `PAGE`'s luminance, and `MUTED` silently fell to
+  4.27:1. Now `#9d9b94`. **Decoration that moves a contrast measurement is not
+  decoration** — re-measure the palette after any change to the page plane.
 - The tab strip had **no focus indicator at all** (`outline: none`, no box-shadow, no
   pseudo-element). The view router now takes a 2px `#8ec0f7` ring at 10.2:1.
 - Concentration flags were `role="alert" aria-live="assertive"` and re-announced on every
