@@ -79,6 +79,31 @@ git status --short          # anything with ?? is NOT going to be deployed
 
 ---
 
+## After every push: verify the LIVE app, not the local tree
+
+A clean local checkout of HEAD booting is **not** evidence the deploy worked. That check
+passed, and the deployed app was down at the same moment.
+
+**How it fails:** Community Cloud re-runs `app.py` on a push but can keep an
+already-imported module in `sys.modules`. A deploy that adds a NEW function to an existing
+module lands new `app.py` against the OLD module. `brand.masthead()` resolved and
+`brand.page_title()` did not — same module, same commit, same file. Git was perfectly
+consistent; the container was not.
+
+Open the URL and check, in this order:
+
+1. **It renders** — no `AttributeError` traceback where the dashboard should be. The
+   header is now guarded so this degrades to a typeset title instead of an outage, but a
+   guard firing still means something is stale.
+2. **"Live market data · prices as of the close on …"** — if it reads *Recorded snapshot*,
+   the API key is not reaching the app and it is serving canned AI while looking healthy.
+3. **Export → Build the report** — the size line is the tell. **~340 KB means the charts
+   are in there**; ~10 KB means it fell back to a chartless document.
+
+If the app is stale rather than broken, **Manage app → Reboot app** forces a clean
+interpreter.
+
+---
 ## Running it locally
 
 ```bash
