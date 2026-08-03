@@ -658,78 +658,52 @@ def render(portfolio: dict) -> None:
     st.caption("Weights are computed on invested equity (cash excluded). "
                "Not investment advice.")
 
-    _render_export(portfolio, df, sector_df, sym)
 
+def collect_report_data(portfolio: dict) -> dict:
+    """Everything the PDF needs, recomputed from the pure modules.
 
-def _render_export(portfolio, df, sector_df, sym) -> None:
-    """The branded PDF export.
-
-    TWO STEPS ON PURPOSE — generate, then download. st.download_button needs
-    its bytes UP FRONT, so wiring the report straight into one would rebuild
-    the whole PDF on every rerun of this view: four Chrome-rendered charts,
-    about seven seconds, every time the user touched the sidebar. The button
-    would be a permanent tax for a feature most readers never press.
-
-    So the first click generates and parks the bytes in session_state; the
-    download button appears only once there is something to download.
+    Lives here rather than in app.py because the Dashboard already knows how to
+    turn a portfolio into priced positions, and duplicating that in the shell
+    would be a second path to the same numbers. Returns a plain dict so the
+    export toolbar — which renders ABOVE this view and cannot see its locals —
+    can build the report from any view the reader happens to be on.
     """
-    import report
+    from data_layer import get_benchmark_history, get_context_batch
+    import report_charts as rc
 
-    st.divider()
-    state = report.availability()
-    if not state["pdf"]:
-        return                      # no engine at all: offer nothing
+    sym = _sym(portfolio)
+    tickers = [p["ticker"] for p in portfolio.get("positions", [])]
+    contexts = get_context_batch(tickers)
+    df = pm.position_values(portfolio, contexts)
+    sector_df = pm.sector_breakdown(df, portfolio)
 
-    theme.section("Export")
-    key = "pdf_bytes"
+    charts = []
+    try:
+        charts.append(("Where your money is", rc.sector_donut(sector_df, sym)))
+    except Exception:  # noqa: BLE001 — one figure never fails the report
+        pass
+    try:
+        contrib = pm.day_move_contributions(df, portfolio.get("cash", 0.0))
+        charts.append(("What moved your portfolio today",
+                       rc.contribution_bars(contrib, sym)))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        corr = pm.correlation_matrix(contexts)
+        if corr is not None and len(corr) > 1:
+            charts.append(("How correlated your holdings are",
+                           rc.correlation_heatmap(corr)))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        weights = {r.ticker: r.weight_pct / 100.0 for r in df.itertuples()}
+        perf = pm.performance_vs_benchmark(contexts, weights,
+                                           get_benchmark_history("SPY"))
+        if perf is not None and not perf.empty:
+            charts.append(("How this book would have performed",
+                           rc.performance_line(perf)))
+    except Exception:  # noqa: BLE001
+        pass
 
-    # What the report WILL contain, said before it is generated. The debate is
-    # the part worth sending to someone, and it is only in the document if the
-    # reader has actually run one — so tell them that while they can still go
-    # and do it, rather than after they have opened a PDF that lacks it.
-    ticker = st.session_state.get("active_ticker")
-    debate = (st.session_state.get("debate_results") or {}).get(ticker)
-    carries = ["your holdings", "the charts above"]
-    if debate:
-        carries.append(f"the **{ticker}** Bull vs Bear debate and verdict")
-    st.caption("The report will include " + ", ".join(carries) + "."
-               + ("" if debate else
-                  "  Run a Bull vs Bear debate first and it will be included too."))
-
-    if st.button(":material/picture_as_pdf: Generate PDF report",
-                 help="A branded report you can save, print or send on."):
-        with st.spinner("Rendering the report…"):
-            try:
-                figures = []
-                try:
-                    figures.append(("Where your money is",
-                                    _donut(sector_df, sym)))
-                    contrib = pm.day_move_contributions(
-                        df, portfolio.get("cash", 0.0))
-                    figures.append(("Today's contributors",
-                                    _contribution_bar(contrib, sym)))
-                except Exception:  # noqa: BLE001 — charts are a bonus
-                    pass
-                st.session_state[key] = report.build(
-                    portfolio=portfolio, positions=df, sector_df=sector_df,
-                    figures=figures, currency=sym,
-                    debate=dict(debate, ticker=ticker) if debate else None,
-                    profile_label=st.session_state.get("loaded_profile"),
-                    data_source=("live market data"
-                                 if run_mode.describe()["data"] == "live"
-                                 else "recorded snapshot"))
-            except Exception as e:  # noqa: BLE001 — never take the tab down
-                st.session_state.pop(key, None)
-                st.error(f"Couldn't build the report: {e}")
-
-    if st.session_state.get(key):
-        st.download_button(
-            ":material/download: Download the report",
-            st.session_state[key], file_name="robosmart-report.pdf",
-            mime="application/pdf", type="primary")
-
-    if not state["charts"]:
-        # Said out loud rather than silently shipping a chartless report. The
-        # static-image engine drives real Chrome, which a hosted container
-        # generally does not have — the tables and figures are unaffected.
-        st.caption(theme.safe_md(state["why"]))
+    return {"positions": df, "sector_df": sector_df, "charts": charts,
+            "currency": sym}

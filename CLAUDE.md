@@ -42,8 +42,7 @@ No API key at all ⇒ recorded AI regardless of flags.
 ## Commands
 
 ```bash
-.venv/bin/python -m pytest                    # 303 tests, fully offline, ~5s
-.venv/bin/python -m pytest --pdf              # + static chart export (needs Chrome)
+.venv/bin/python -m pytest                    # 304 tests, fully offline, ~6s
 .venv/bin/python -m pytest --live             # + parity checks against real yfinance
 .venv/bin/python -m pytest --llm              # + groundedness vs the real model (spends credit)
 .venv/bin/python -m market_data.refresh       # re-record the offline fixture
@@ -122,7 +121,7 @@ theme.py                shared design tokens
 
 ## Current state
 
-**303 tests passing offline** (~5s), **308 with `--pdf`**, **321 with `--live`**, plus
+**304 tests passing offline** (~6s) and **322 with `--live`**, plus
 model-groundedness (`--llm`). Verified end to end in all three modes, locally and on the
 deployed app — and, as of 2026-08-03, in a real browser at 1440px and at an emulated 390px
 phone, on **live market data** rather than only on the fixture.
@@ -239,40 +238,53 @@ waterfall's three components over a year instead of a day. No new plumbing; `sec
   whose src is an inline SVG data URI — a shape `<img src=x onerror=…>` cannot reach — so
   the guard keeps full strength rather than being widened to pass.
 
-#### PDF export (`report.py`) — and why kaleido is optional
+#### PDF export (`report.py` + `report_charts.py`)
 
-"Download PDF" on the Dashboard. **reportlab + svglib** (both pure Python) produce the
-document: seal cover, holdings table, cash reconciliation, marks embedded as **vectors**,
-and a per-page footer carrying the disclaimer — a page separated from the rest still says
-what it is. **kaleido** adds the charts and is deliberately **optional**:
+"Download PDF" from the **header**, beside the Guide. reportlab + svglib build the
+document; **matplotlib** draws the figures. All three are pure Python, so the export is
+**not conditional on the environment** — the earlier design made charts optional and that
+was wrong: a report without figures is a spreadsheet, and "generate it locally for charts"
+cannot be said about a feature whose purpose is that users save and send it.
 
-- **0.2.1 ships no macOS arm64 binary.** Installs cleanly, then fails at render with
-  `./bin/kaleido: No such file or directory`.
-- **1.x is incompatible with Plotly 5.24's `fig.to_image()`** — it warns and refuses. Its
-  own `calc_fig_sync()` *does* work with a 5.x figure; that is the route `report.py` takes.
-- **1.x drives a real Chrome**, which Community Cloud does not have.
+> **Do not reach for kaleido.** It is the obvious way to rasterise a Plotly figure and it
+> fails three ways: 0.2.1 ships no macOS arm64 binary (installs clean, dies at render);
+> 1.x refuses Plotly 5.24 through `fig.to_image()`; and 1.x drives a **real headless
+> Chrome**, which Community Cloud has not got. That last one left the DEPLOYED export with
+> tables and no charts. `report_charts` redraws the same DataFrames with matplotlib — no
+> browser, manylinux wheels, all five figures in ~0.5s against kaleido's ~7s.
 
-So the report is generated from pure Python and **charts are an enhancement**. Without the
-engine it prints a complete document plus one line saying the charts could not be rendered
-— silently dropping half the content is worse than admitting it. Tests pin that path
-offline; the ones needing Chrome carry `@pytest.mark.pdf` (they took the suite 4.3s → 14.2s,
-so Chrome is now a declared dependency like `--live`).
+> `report_charts` is a second **renderer**, never a second source of numbers. Every
+> function takes the DataFrame the matching Plotly builder takes. A test parses its
+> imports (not its source — the docstring names `portfolio_metrics` while explaining this
+> very rule) and fails if it ever imports an analytics module.
 
-> **The cover uses the SEAL, not the mirror**, against LOGOS.md's placement table — on
-> LOGOS.md's own rule. svglib renders paths but **drops `<mask>`**, so the mirror's
-> reflection comes out as solid ink: the wordmark upside-down beneath itself, which reads
-> as a printing fault. LOGOS.md says use the seal when reproduction is lossy. It is.
+> **The cover is `mirror-print-on-light.svg`, generated.** svglib renders paths but
+> **drops `<mask>`**, so the real mirror's reflection came out as solid ink — the wordmark
+> upside-down beneath itself. LOGOS.md anticipates this ("the first thing a bad
+> reproduction loses") and says fall back to the seal; instead the fade is **baked** into
+> 26 clipped bands at the alpha the gradient had at that height. Both clipping and
+> fill-opacity survive svglib. Regenerate if the source mirror changes.
 
-> **A pandas `Timestamp` in `layout.xaxis.range` makes a figure unexportable.** The range
-> control set it that way; the browser was fine because Streamlit's serialiser handles
-> Timestamps, but kaleido's raises `Type is not JSON serializable: Timestamp` and the
-> performance chart **silently vanished from the PDF while looking perfect on screen**. Both
-> `_apply_window`s now emit `.isoformat()` strings. Do not "simplify" that back.
->
-> Note the obvious test for this is the wrong one: a blanket "is the figure JSON
-> serialisable" check fails on **all five** charts, because plotly figures legitimately
-> carry object-dtype ndarrays that the real export path cleans through plotly's encoder
-> first. Assert the layout values are primitives, and separately do a real export.
+> Cover positions are **derived from the mark's rendered height**, never hard-coded. The
+> first version put the subtitle at a fixed offset and printed "Portfolio report" straight
+> through "DEBATE CLUB".
+
+#### Header actions, and the Guide
+
+**Guide** and **Export** live in the header beside the product name, not in the sidebar and
+not at the foot of the Dashboard. Both are global — the Guide explains all four views, the
+export carries all four — so scoping either to one view misrepresented it, and the export
+in particular sat below a full page of charts where nobody looks for an action.
+
+The Guide is a **map**, not prose: the mirror mark, then the four views as a 2x2 card grid
+in router order, then numbered steps. A reader's question there is "which of these four do
+I want", which is a comparison — and a comparison read down one column of prose is the one
+shape that makes it hard.
+
+> **Dialog CSS must be scoped to `[data-testid="stDialog"]`, NOT nested under
+> `section.stMain`.** A dialog renders through a portal outside the main section, so the
+> house scoping rule matches nothing there and the Guide renders as unstyled default
+> output. This is the one place that rule is deliberately set aside (theme.py rule 15).
 
 **The report carries the ANALYSIS, not just the tables.** This was a deliberate correction:
 the first version exported holdings and two charts, which is what a spreadsheet does. The
@@ -296,7 +308,7 @@ whether a debate will be included — while you can still go and run one.
 > **silently truncating** claims/falsifiers/explanations to the first 3–4. Those caps are
 > gone; an artifact people send onward must not quietly drop analysis.
 
-**303 offline · 308 with `--pdf` · 321 with `--live`** (was 199/209).
+**304 offline · 322 with `--live`** (was 199/209).
 
 ### Design pass 2 — surfaces and composition (2026-08-01)
 

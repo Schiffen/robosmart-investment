@@ -1,44 +1,48 @@
 """report.py — the branded PDF export.
 
-WHAT THIS IS BUILT ON, AND WHY EACH PIECE
------------------------------------------
-    reportlab   the document itself.        REQUIRED.
-    svglib      the marks, as VECTORS.      REQUIRED. Pure Python.
-    kaleido     Plotly charts, as PNG.      OPTIONAL — see below.
+WHAT THIS IS BUILT ON
+---------------------
+    reportlab      the document itself
+    svglib         the marks, as embedded VECTORS
+    report_charts  the figures, via matplotlib
 
-**The PDF is generated even when kaleido is missing.** That is the single most
-important design decision in this file, and it is a direct response to how the
-dependency behaves in the wild:
+All three are pure Python and install everywhere. **The charts are not
+conditional on the environment**, which is the whole point of the export: a
+report without its figures is a spreadsheet, and "generate it locally to get
+the charts" is not something you can say about a feature whose purpose is that
+users save it and send it to other people.
 
-  - kaleido 0.2.1 ships NO macOS arm64 binary. On an Apple-silicon Mac it
-    installs happily and then fails at render with "./bin/kaleido: No such file
-    or directory".
-  - kaleido 1.x fixes that, but is incompatible with Plotly 5.24's
-    `fig.to_image()` — it warns and refuses. Its DIRECT api (`calc_fig_sync`)
-    does work with Plotly 5.x, which is the route taken here.
-  - kaleido 1.x drives REAL CHROME. Streamlit Community Cloud does not have
-    Chrome, and downloading one per container on first request is not something
-    to put in the path of a live demo.
+WHY NOT KALEIDO — kept, because it is the obvious thing to reach for
+-------------------------------------------------------------------
+Turning a *Plotly* figure into a raster needs kaleido, and every version of it
+fails somewhere that matters:
 
-So the charts are an ENHANCEMENT, not the product. Tables, figures, branding
-and every number render from pure Python; if the chart engine is unavailable
-the report says so in one line and is otherwise complete. An all-or-nothing
-design would have meant "works on my machine, 500s on the deployed app", which
-is the worst of both.
+  - 0.2.1 ships NO macOS arm64 binary. It installs happily on Apple silicon and
+    then dies at render with "./bin/kaleido: No such file or directory".
+  - 1.x fixes that but refuses Plotly 5.24 through `fig.to_image()`; only its
+    own `calc_fig_sync` works with a 5.x figure.
+  - 1.x drives REAL CHROME. Streamlit Community Cloud has none, and downloading
+    one per container on first request is not something to put in front of a
+    live demo.
 
-WHY THE SEAL ON THE COVER AND NOT THE MIRROR
---------------------------------------------
-LOGOS.md assigns report covers to `mirror-on-light.svg`. It also says the
-mirror's reflection "is the first thing a bad reproduction loses ... if the
-output is one-bit or a fax, use the seal instead."
+So the report does not render Plotly at all. `report_charts` redraws the same
+DataFrames with matplotlib, which needs no browser, ships manylinux wheels, and
+renders all five figures in about half a second against kaleido's seven. It is
+a second RENDERER, never a second source of numbers — see that module.
 
-svglib is exactly that kind of lossy reproduction: it renders paths but drops
-`<mask>`, so the mirror's reflection comes out as SOLID INK instead of fading
-to nothing — the wordmark upside-down underneath itself, which reads as a
-printing fault rather than as a reflection. Verified by rendering it.
+THE COVER USES THE MIRROR
+-------------------------
+Specifically `mirror-print-on-light.svg`, generated from `mirror.svg`. The
+original cannot be used here: svglib renders paths but **drops `<mask>`**, so
+the reflection comes out as solid ink — the wordmark upside-down beneath
+itself, which reads as a printing fault. LOGOS.md anticipates exactly this
+("the first thing a bad reproduction loses") and says to fall back to the seal.
 
-So the cover takes the seal, on the identity's own instruction. This is not a
-downgrade; it is the rule the identity wrote for precisely this case.
+Rather than accept that, the fade is BAKED: the reflection is sliced into 26
+horizontal bands, each clipped and given the alpha the gradient had at that
+height. Both clipping and fill-opacity survive svglib, so the mark reproduces
+as drawn. Regenerate with the script recorded in logos/LOGOS.md if the source
+mirror ever changes.
 """
 
 from __future__ import annotations
@@ -75,87 +79,12 @@ def availability() -> dict:
         state["why"] = f"PDF engine unavailable ({type(e).__name__}: {e})."
         return state
     try:
-        _import_kaleido()
+        import report_charts  # noqa: F401
         state["charts"] = True
-    except Exception:  # noqa: BLE001
-        state["why"] = ("Charts are excluded: the static-image engine "
-                        "(kaleido) is not available here.")
+    except Exception as e:  # noqa: BLE001
+        state["why"] = (f"Charts are excluded: the figure renderer is "
+                        f"unavailable ({type(e).__name__}).")
     return state
-
-
-def _import_kaleido():
-    """Import kaleido with its version banner silenced.
-
-    kaleido 1.x emits a multi-line UserWarning on import whenever Plotly is
-    below 6.1, telling you `fig.to_image()` will not work. That is true and
-    irrelevant: this module never calls `to_image`, it calls kaleido's own
-    `calc_fig_sync`, which the same warning explicitly says does work with a
-    5.x figure. Left unsuppressed the banner prints on every availability check
-    — into the Streamlit server log, and into pytest's warning summary.
-    """
-    import warnings
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        import kaleido
-    return kaleido
-
-
-# --------------------------------------------------------------------------
-# Charts -> PNG
-# --------------------------------------------------------------------------
-
-def _for_print(fig):
-    """Re-style a dark app figure for white paper.
-
-    theme.style_fig paints for a #0d0d0d page: transparent backgrounds and
-    INK_2 (#c3c2b7) type. Dropped onto white, that type measures about 1.9:1 —
-    effectively invisible. The figure's colours live in the figure JSON, not in
-    CSS, so there is no stylesheet that can fix this; it has to be restyled
-    before export.
-
-    Series colours are deliberately left alone: theme.CATEGORICAL, GOOD and BAD
-    were chosen for luminance AND chroma parity and they hold up on white. Only
-    the chrome — type, axes, gridlines, paper — is flipped.
-    """
-    import copy
-    f = copy.deepcopy(fig)
-    f.update_layout(
-        paper_bgcolor=PAPER, plot_bgcolor=PAPER,
-        font=dict(color=PAGE_INK, size=12),
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=PAGE_INK)),
-    )
-    f.update_xaxes(gridcolor=RULE, zerolinecolor="#9AA0A6", linecolor="#9AA0A6",
-                   tickfont=dict(color=PAGE_MUTED),
-                   title=dict(font=dict(color=PAGE_MUTED)))
-    f.update_yaxes(gridcolor=RULE, zerolinecolor="#9AA0A6", linecolor="#9AA0A6",
-                   tickfont=dict(color=PAGE_MUTED),
-                   title=dict(font=dict(color=PAGE_MUTED)))
-    # Annotations (the donut's centre total) carry their own colour.
-    for ann in (f.layout.annotations or []):
-        ann.font.color = PAGE_INK
-    return f
-
-
-def _png(fig, width: int = 1000, height: int = 460) -> bytes | None:
-    """Render a figure to PNG, or None if the engine cannot.
-
-    Uses kaleido's DIRECT api rather than `fig.to_image()`: kaleido 1.x refuses
-    to serve Plotly 5.24 through Plotly's own path, but its own entry point
-    works fine with a 5.x figure.
-    """
-    try:
-        kaleido = _import_kaleido()
-        out = kaleido.calc_fig_sync(
-            _for_print(fig),
-            opts={"format": "png", "width": width, "height": height, "scale": 2},
-        )
-        if isinstance(out, (bytes, bytearray)):
-            return bytes(out)
-        if isinstance(out, list) and out:
-            return bytes(out[0])
-    except Exception:  # noqa: BLE001 — a chart is never worth failing the report
-        return None
-    return None
 
 
 # --------------------------------------------------------------------------
@@ -258,34 +187,63 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
             renderPDF.draw(stamp, c, W - 20 * mm - stamp.width, 22 * mm)
 
     # ---- Cover -----------------------------------------------------------
-    cover = _mark("seal-on-light", 132)
+    # THE MIRROR IS THE TITLE. It is the ceremonial half of the identity and
+    # LOGOS.md assigns report covers to it; setting the product name in
+    # Helvetica underneath would be a second, worse wordmark competing with the
+    # drawn one. The print variant is used because svglib drops <mask> — see
+    # the module docstring.
+    cover = _mark("mirror-print-on-light", 120 * mm) or _mark("seal-on-light", 132)
+    # Positions are DERIVED from the mark's rendered height, never guessed. The
+    # first version put the subtitle at a fixed H-108mm, which landed inside the
+    # mirror's own footprint and printed "Portfolio report" straight through
+    # "DEBATE CLUB". The mark is 3:1 and its height moves with any width change,
+    # so any hard-coded offset below it is one edit away from colliding again.
+    mark_top = H - 46 * mm
+    mark_bottom = mark_top - (cover.height if cover else 0)
     if cover:
-        renderPDF.draw(cover, c, (W - cover.width) / 2, H - 92 * mm)
-    c.setFillColor(colors.HexColor(PAGE_INK))
-    c.setFont("Helvetica-Bold", 26)
-    c.drawCentredString(W / 2, H - 108 * mm, brand.PRODUCT)
-    c.setFont("Helvetica", 13)
-    c.setFillColor(colors.HexColor(PAGE_MUTED))
-    c.drawCentredString(W / 2, H - 118 * mm, "Portfolio report")
+        renderPDF.draw(cover, c, (W - cover.width) / 2, mark_bottom)
 
-    y = H - 140 * mm
+    c.setFillColor(colors.HexColor(PAGE_MUTED))
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(W / 2, mark_bottom - 14 * mm, "PORTFOLIO REPORT")
+
+    # The book this report is ABOUT, stated as the cover's subject. A report
+    # that does not name whose portfolio it is cannot be filed, forwarded or
+    # told apart from another one — which is the whole failure mode of an
+    # export people are meant to keep and send on.
+    invested = float(np.nansum(positions["market_value"].to_numpy(dtype=float)))
+    cash = float(portfolio.get("cash", 0) or 0)
+    subject = profile_label or "Your uploaded portfolio"
+
+    y = mark_bottom - 34 * mm
     c.setFillColor(colors.HexColor(RULE))
-    c.rect(55 * mm, y + 8 * mm, W - 110 * mm, 0.8, stroke=0, fill=1)
-    c.setFont("Helvetica", 10.5)
+    c.rect(52 * mm, y + 13 * mm, W - 104 * mm, 0.8, stroke=0, fill=1)
     c.setFillColor(colors.HexColor(PAGE_INK))
-    for line in [l for l in (
-            f"Book: {profile_label}" if profile_label else None,
-            f"Prices: {data_source}" + (f", close of {as_of}" if as_of else ""),
-            "All figures close-to-close.",
-            f"Generated {_dt.date.today():%d %b %Y}.") if l]:
-        c.drawCentredString(W / 2, y, line)
-        y -= 6.5 * mm
+    c.setFont("Helvetica-Bold", 15)
+    c.drawCentredString(W / 2, y, subject)
+
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(W / 2, y - 8 * mm,
+                        f"{len(positions)} holdings · "
+                        f"{_money(invested + cash, currency)} total")
+    c.setFillColor(colors.HexColor(PAGE_MUTED))
+    c.setFont("Helvetica", 9.5)
+    c.drawCentredString(W / 2, y - 15 * mm,
+                        f"{_money(invested, currency)} invested · "
+                        f"{_money(cash, currency)} cash")
+
+    # Provenance, one line. Which prices, from when, on what basis — the three
+    # things a reader who was never in front of the app cannot otherwise know.
+    c.setFont("Helvetica", 9.5)
+    prov = data_source + (f" · close of {as_of}" if as_of else "")
+    c.drawCentredString(W / 2, y - 27 * mm, f"{prov} · close-to-close")
+    c.drawCentredString(W / 2, y - 33 * mm,
+                        f"Generated {_dt.date.today():%d %B %Y}")
 
     c.setFont("Helvetica-Oblique", 9)
-    c.setFillColor(colors.HexColor(PAGE_MUTED))
     c.drawCentredString(W / 2, 36 * mm,
-                        "This document is produced by an educational university "
-                        "project and is not investment advice.")
+                        "Produced by an educational university project. "
+                        "Not investment advice.")
     footer(1)
     c.showPage()
 
@@ -454,13 +412,19 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
         flow(items)
 
     # ---- Charts ----------------------------------------------------------
+    # `figures` is (caption, PNG bytes) — already rendered by report_charts.
+    # Passing bytes rather than a figure object keeps this module ignorant of
+    # which plotting library drew them, which is what made swapping kaleido out
+    # for matplotlib a change in one place.
     from reportlab.lib.utils import ImageReader
-    wanted = list(figures or [])
+    # `requested` counts what the CALLER asked for; `usable` is what survived.
+    # Counting only the survivors would make the "charts could not be rendered"
+    # notice below unreachable — the empty list looks identical to "no charts
+    # were wanted", which is exactly the distinction the notice exists to draw.
+    requested = list(figures or [])
+    usable = [(cap, png) for cap, png in requested if png]
     drawn = 0
-    for caption, fig in wanted:
-        png = _png(fig)
-        if png is None:
-            continue          # this chart only; never the document
+    for caption, png in usable:
         page += 1
         drawn += 1
         img = ImageReader(io.BytesIO(png))
@@ -478,7 +442,7 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
     # A report that silently drops half its content is worse than one that is
     # honest about what it could not produce — the reader has no other way to
     # know the difference between "no charts here" and "charts failed".
-    if wanted and drawn == 0:
+    if requested and drawn == 0:
         page += 1
         c.setFillColor(colors.HexColor(PAGE_INK))
         c.setFont("Helvetica-Bold", 13)

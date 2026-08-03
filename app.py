@@ -18,6 +18,7 @@ import streamlit as st
 import about
 import brand
 import data_layer
+import export
 import profiles
 import run_mode
 import theme
@@ -230,9 +231,6 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
-    about.open_button()
-
-    st.divider()
     # State the resolved mode explicitly. Recorded data that looks live is the
     # failure this whole layer exists to prevent, so the snapshot date is named.
     mode_line = run_mode.summary_line()
@@ -242,7 +240,20 @@ with st.sidebar:
 
 
 # ---- Header --------------------------------------------------------------
-st.title(brand.PRODUCT)
+# The title and the two global actions share one row. Both actions apply to the
+# WHOLE app rather than to any one view — "what is this" explains all four, and
+# the export carries whatever the app currently knows — so they belong beside
+# the product name, not buried at the bottom of a single tab where the export
+# used to sit and where nobody scrolls to find it.
+_head, _actions = st.columns([7, 3], vertical_alignment="bottom")
+with _head:
+    st.title(brand.PRODUCT)
+with _actions:
+    _a1, _a2 = st.columns(2)
+    with _a1:
+        about.open_button()
+    with _a2:
+        export.open_button()
 
 # Re-asserted on EVERY run, not opened once from the button's own branch. A
 # dialog exists only for the script run that calls it, and this app reruns on
@@ -250,6 +261,7 @@ st.title(brand.PRODUCT)
 # would disappear the moment the reader touched anything. The open state lives
 # in session_state; this replays it. See about.py.
 about.maybe_render()
+export.maybe_render(ss.portfolio)
 
 
 def _active_context():

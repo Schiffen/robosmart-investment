@@ -1157,6 +1157,57 @@ section.stMain button[data-variant="segmented_control"][aria-checked="true"] {{
      selected/unselected work. */
   color: {INK} !important;
 }}
+/* ---- 15. The Guide dialog ----------------------------------------------
+   SCOPED TO .stDialog, DELIBERATELY NOT NESTED UNDER section.stMain.
+
+   Every other rule in this file is scoped to `section.stMain`, and that is
+   correct — it is what survives Streamlit renaming the stMain testid on any
+   view carrying a chat input. But a dialog renders through a PORTAL, outside
+   the main section entirely, so `section.stMain .rs-guide-card` matches
+   nothing and the Guide would render as unstyled default output. This is the
+   one place in the app where the house scoping rule has to be set aside, and
+   the reason is worth stating so nobody "fixes" it back.
+
+   The cards deliberately reuse the panel grammar from rule 11 — lit top edge,
+   no full border — rather than introducing a card system that exists only
+   here. A guide that does not look like the product it is explaining is
+   working against itself. */
+[data-testid="stDialog"] .rs-guide-head {{
+  font-size: .78rem; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: {MUTED};
+  margin: 1.6rem 0 .7rem;
+}}
+[data-testid="stDialog"] .rs-guide-card {{
+  background: linear-gradient(180deg, {SURFACE} 0%, #151514 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 2px 10px rgba(0,0,0,.35);
+  border-radius: {RADIUS_PANEL};
+  padding: .95rem 1.05rem;
+  height: 100%;
+}}
+[data-testid="stDialog"] .rs-guide-title {{
+  font-weight: 650; font-size: 1rem; color: {INK}; margin-bottom: .35rem;
+  letter-spacing: -.01em;
+}}
+[data-testid="stDialog"] .rs-guide-body {{
+  color: {INK_2}; font-size: .89rem; line-height: 1.55;
+}}
+[data-testid="stDialog"] .rs-guide-steps {{
+  color: {INK_2}; line-height: 1.62; padding-left: 1.15rem; margin: 0;
+  max-width: 72ch;
+}}
+[data-testid="stDialog"] .rs-guide-steps li {{ margin: .3rem 0; }}
+[data-testid="stDialog"] .rs-guide-steps b {{ color: {INK}; }}
+[data-testid="stDialog"] .rs-guide-steps code {{
+  background: #151514; color: {INK_2}; padding: .06rem .3rem;
+  border-radius: 5px; font-size: .84em;
+}}
+/* The two card rows must stack on a phone, where the dialog is nearly the
+   full viewport and a 2-across grid leaves ~150px per card. */
+@media (max-width: 640px) {{
+  [data-testid="stDialog"] [data-testid="stColumn"] {{
+    flex: 1 1 100% !important; min-width: 100% !important;
+  }}
+}}
 </style>
 """
 

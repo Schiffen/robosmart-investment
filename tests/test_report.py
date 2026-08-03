@@ -53,41 +53,34 @@ def test_report_builds_with_no_figures(book):
     assert len(data) > 2000
 
 
-def test_report_builds_when_the_chart_engine_is_unavailable(book, monkeypatch):
-    """THE load-bearing test. Simulate kaleido being absent or broken — exactly
-    what happens on Community Cloud, and on any Apple-silicon machine that got
-    kaleido 0.2.1 — and require a complete document anyway."""
-    monkeypatch.setattr(report, "_png", lambda *a, **k: None)
-    import tabs.dashboard as dash
+def test_report_says_so_when_no_charts_arrive(book):
+    """A report that silently drops its figures is worse than one that admits
+    it — the reader has no other way to tell "no charts here" from "charts
+    failed". Passing figures that are all None is the shape of that failure."""
+    import io
     p, df, sect = book
-    figures = [("Where your money is", dash._donut(sect, "$"))]
     data = report.build(portfolio=p, positions=df, sector_df=sect,
-                        figures=figures, profile_label="Balanced growth")
+                        figures=[("Where your money is", None)],
+                        profile_label="Balanced growth")
     assert data[:5] == b"%PDF-"
-    text = " ".join(pg.extract_text() for pg in pypdf.PdfReader.__call__(
-        __import__("io").BytesIO(data)).pages)
-    assert "Holdings" in text, "the tables must survive a dead chart engine"
-    assert "could not be rendered" in text, \
-        "a report that silently drops its charts is worse than one that says so"
+    text = " ".join(pg.extract_text() for pg in
+                    pypdf.PdfReader(io.BytesIO(data)).pages)
+    assert "Holdings" in text, "the tables must survive a dead chart renderer"
+    assert "could not be rendered" in text
 
 
-def test_a_single_broken_figure_does_not_lose_the_others(book, monkeypatch):
-    calls = {"n": 0}
-
-    def flaky(fig, **kw):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise RuntimeError("boom")
-        return None
-    monkeypatch.setattr(report, "_png", flaky)
+def test_a_single_broken_figure_does_not_lose_the_others(book):
+    """One figure failing must cost that figure and nothing else."""
+    import io
+    import report_charts as rc
     p, df, sect = book
-    import tabs.dashboard as dash
-    # _png swallows its own exceptions, so a raise here proves isolation.
-    with pytest.raises(RuntimeError):
-        flaky(None)
+    good = rc.sector_donut(sect, "$")
     data = report.build(portfolio=p, positions=df, sector_df=sect,
-                        figures=[("a", dash._donut(sect, "$"))])
-    assert data[:5] == b"%PDF-"
+                        figures=[("broken", None), ("Where your money is", good)])
+    r = pypdf.PdfReader(io.BytesIO(data))
+    text = " ".join(pg.extract_text() for pg in r.pages)
+    assert "Where your money is" in text
+    assert "broken" not in text
 
 
 # --------------------------------------------------------------------------
@@ -138,37 +131,70 @@ def test_pdf_metadata_is_set(book):
 # Print styling — charts are authored for #0d0d0d, the page is white
 # --------------------------------------------------------------------------
 
-def test_print_restyle_makes_type_dark_on_white(book):
-    """theme.style_fig paints INK_2 (#c3c2b7) type for a dark page. Dropped
-    onto white that measures about 1.9:1 — effectively invisible. Chart colours
-    live in the figure JSON, not CSS, so no stylesheet can fix this."""
-    import tabs.dashboard as dash
+def test_every_chart_renders_without_a_browser(book):
+    """The point of the whole renderer swap.
+
+    Plotly needed kaleido, which drives a real Chrome that Community Cloud has
+    not got — so the deployed export had tables and no figures. matplotlib
+    renders in-process on any platform. If this ever needs a browser again, the
+    export is broken everywhere it matters and nowhere it is tested.
+    """
+    import report_charts as rc
+    import portfolio_metrics as pm
     p, df, sect = book
-    printed = report._for_print(dash._donut(sect, "$"))
-    assert printed.layout.paper_bgcolor == report.PAPER
-    assert printed.layout.font.color == report.PAGE_INK
-    assert printed.layout.font.color.lower() != "#c3c2b7"
+    pngs = [
+        rc.sector_donut(sect, "$"),
+        rc.contribution_bars(pm.day_move_contributions(df, p.get("cash", 0.0)), "$"),
+        rc.attribution_waterfall(1.36, -1.19, 2.76, 2.93, "NVDA"),
+    ]
+    for i, png in enumerate(pngs):
+        assert png and png[:8] == b"\x89PNG\r\n\x1a\n", f"figure {i} is not a PNG"
+        assert len(png) > 3000, f"figure {i} looks empty"
 
 
-def test_print_restyle_does_not_touch_series_colours(book):
-    """GOOD/BAD and CATEGORICAL were matched on luminance AND chroma and hold
-    up on white. Only the chrome flips."""
-    import tabs.dashboard as dash
-    p, df, sect = book
-    original = dash._donut(sect, "$")
-    printed = report._for_print(original)
-    assert list(printed.data[0].marker.colors) == list(original.data[0].marker.colors)
+def test_report_charts_use_matplotlibs_headless_backend():
+    """Agg must be selected BEFORE pyplot is imported: matplotlib otherwise
+    probes for a GUI backend, which on a headless container is at best a wasted
+    import and at worst a hang."""
+    import matplotlib
+    import report_charts  # noqa: F401
+    assert matplotlib.get_backend().lower() == "agg"
 
 
-def test_restyle_does_not_mutate_the_on_screen_figure(book):
-    """The app keeps rendering after an export. Restyling in place would leave
-    the live dashboard painted for paper."""
-    import tabs.dashboard as dash
-    p, df, sect = book
-    fig = dash._donut(sect, "$")
-    before = fig.layout.paper_bgcolor
-    report._for_print(fig)
-    assert fig.layout.paper_bgcolor == before
+def test_report_charts_draw_from_the_shared_palette():
+    """A second renderer must not become a second palette. Colour comes from
+    theme, so the PDF and the screen cannot drift."""
+    import inspect
+    import report_charts as rc
+    src = inspect.getsource(rc)
+    assert "theme.CATEGORICAL" in src and "theme.GOOD" in src and "theme.BAD" in src
+
+
+def test_report_charts_compute_nothing(book):
+    """The report is a second RENDERER, never a second source of numbers.
+
+    Every figure takes a DataFrame already produced by portfolio_metrics or
+    factor_model. If a chart here started deriving its own values, the PDF
+    could disagree with the screen and there would be no test that noticed.
+    """
+    import ast
+    import inspect
+    import report_charts as rc
+
+    # Parse the IMPORTS rather than grepping the source: the module docstring
+    # legitimately names portfolio_metrics while explaining this very rule, and
+    # a substring check fails on its own documentation.
+    tree = ast.parse(inspect.getsource(rc))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    for banned in ("portfolio_metrics", "factor_model", "data_layer",
+                   "yfinance", "streamlit"):
+        assert banned not in imported, \
+            f"report_charts imports {banned}; it must only DRAW what it is given"
 
 
 # --------------------------------------------------------------------------

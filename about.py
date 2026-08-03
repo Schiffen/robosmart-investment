@@ -38,6 +38,7 @@ from __future__ import annotations
 import streamlit as st
 
 import brand
+import theme
 
 _FLAG = "show_about"
 
@@ -75,10 +76,17 @@ VIEWS = [
 
 
 def open_button(*, key: str = "about_btn") -> None:
-    """Render the trigger. Safe to call from inside `with st.sidebar:`."""
-    if st.button(":material/help: What is this?", key=key,
+    """The header trigger, beside the export.
+
+    Both actions are global — this explains all four views, the export carries
+    all four — so they belong next to the product name rather than in the
+    sidebar among the controls that change what is on screen. A reader looking
+    for "what am I looking at" looks up, not down a list of portfolios.
+    """
+    if st.button(":material/explore: Guide", key=key,
                  use_container_width=True,
-                 help="What each view computes, and how to drive the app."):
+                 help="A map of the app: what each view computes and how to "
+                      "drive it."):
         st.session_state[_FLAG] = True
 
 
@@ -93,53 +101,87 @@ def _dismiss() -> None:
     st.session_state[_FLAG] = False
 
 
-@st.dialog("About this app", width="large", on_dismiss=_dismiss)
+@st.dialog("Guide", width="large", on_dismiss=_dismiss)
 def _dialog() -> None:
+    # The mirror opens it. This is the one surface in the app with room for the
+    # ceremonial mark — LOGOS.md gives it splash and title pages, bans it from
+    # mastheads, and it is the mark that SAYS what the product is about: every
+    # claim answered by its opposite. Decorative here, so alt="" and
+    # aria-hidden; the heading beside it carries the name in text.
     st.markdown(
-        f"**{brand.PRODUCT}** takes a stock portfolio and runs four different "
-        f"analyses over it — three that compute, and two that argue. It is a "
-        f"university project built to show an AI layer that is *grounded*: "
-        f"every number on screen comes from market data or from a tool call, "
-        f"never from a model's memory."
-    )
+        f"<div style='display:flex;justify-content:center;padding:.2rem 0 1rem'>"
+        f"{brand.logo('mirror', 96, alt='')}</div>",
+        unsafe_allow_html=True)
+
+    st.markdown(
+        f"<p style='text-align:center;color:{theme.INK_2};font-size:1.02rem;"
+        f"line-height:1.6;max-width:60ch;margin:0 auto 1.4rem'>"
+        f"Four ways to look at one portfolio — three that <b>compute</b>, and "
+        f"two that <b>argue</b>. Every number on screen comes from market data "
+        f"or from a tool call, never from a model's memory.</p>",
+        unsafe_allow_html=True)
+
+    # ---- The map ---------------------------------------------------------
+    # A two-column grid of real cards, not a bulleted list. The reader's
+    # question here is "which of these four do I want", which is a COMPARISON —
+    # and a comparison read down a single column of prose is the one shape that
+    # makes it hard. Cards put them side by side, in router order, so the map
+    # matches the control it describes.
+    st.markdown(f"<div class='rs-guide-head'>The four views</div>",
+                unsafe_allow_html=True)
+    for row in (VIEWS[:2], VIEWS[2:]):
+        cols = st.columns(2, gap="medium")
+        for col, (icon, name, what) in zip(cols, row):
+            with col:
+                st.markdown(
+                    f"<div class='rs-guide-card'>"
+                    f"<div class='rs-guide-title'>{name}</div>"
+                    f"<div class='rs-guide-body'>{what}</div></div>",
+                    unsafe_allow_html=True)
+
+    # ---- Driving it ------------------------------------------------------
+    st.markdown("<div class='rs-guide-head'>Driving it</div>",
+                unsafe_allow_html=True)
+    steps = [
+        ("Pick a view", "the row of buttons under the title."),
+        ("Switch investor", "five sample books in the sidebar. One engine "
+                            "reaches five different verdicts — that contrast "
+                            "is what they are there to show."),
+        ("Load your own", "a CSV of <code>ticker,shares,cost_basis</code>, "
+                          "with an optional <code>sector</code> column and an "
+                          "optional <code>CASH</code> row. Template in the "
+                          "sidebar."),
+        ("Choose the stock", "the sidebar selector drives both Bull vs Bear "
+                             "and What Happened Today."),
+        ("Change the window", "<code>1M / 3M / 6M / YTD / 1Y</code> above the "
+                              "performance chart. <b>1Y is where it starts, so "
+                              "it is also the reset</b> — one tap back to the "
+                              "beginning."),
+        ("Export", "the button beside this one builds a branded PDF of "
+                   "everything the app currently knows — charts, tables and "
+                   "any debate you have run."),
+    ]
+    st.markdown(
+        "<ol class='rs-guide-steps'>"
+        + "".join(f"<li><b>{t}</b> — {d}</li>" for t, d in steps)
+        + "</ol>", unsafe_allow_html=True)
+
+    # ---- The one thing worth reading twice --------------------------------
+    st.markdown("<div class='rs-guide-head'>The line under the title</div>",
+                unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color:{theme.INK_2};line-height:1.6;max-width:68ch'>"
+        f"Everything here is <b>close-to-close</b>, so “today's move” is the "
+        f"last settled close against the one before it — on a Monday morning "
+        f"the current price is Friday's. That line names the date you are "
+        f"actually looking at, and whether prices are <b>live</b> or a "
+        f"<b>recorded snapshot</b>. Recorded data must never be able to look "
+        f"live, so the source is stated rather than implied.</p>",
+        unsafe_allow_html=True)
+
     st.caption("Educational university project. **This is not investment advice.**")
 
-    st.divider()
-    st.markdown("#### The four views")
-    for icon, name, what in VIEWS:
-        st.markdown(f"{icon} **{name}** — {what}")
-
-    st.divider()
-    st.markdown("#### Driving it")
-    st.markdown(
-        "- **Pick a view** with the row of buttons under the title.\n"
-        "- **Switch investor** from the sidebar. Five sample books run through "
-        "one engine and reach five different verdicts — that contrast is what "
-        "they are there to show.\n"
-        "- **Load your own** portfolio from the sidebar: a CSV of "
-        "`ticker,shares,cost_basis`, with an optional `sector` column and an "
-        "optional `CASH` row. A template is downloadable there.\n"
-        "- **Choose the stock** that Bull vs Bear and What Happened Today "
-        "analyse, using the sidebar selector.\n"
-        "- **Change the time window** on the performance chart with the "
-        "`1M / 3M / 6M / YTD / 1Y` buttons above it. `1Y` is the view it "
-        "starts on, so it is also the reset — one tap returns you to where "
-        "you began.\n"
-        "- **On a phone**, open the sidebar from the top-left arrows and tap "
-        "anywhere outside it to close it again."
-    )
-
-    st.divider()
-    st.markdown("#### Reading the line under the title")
-    st.markdown(
-        "Everything here is **close-to-close**, so “today's move” is the last "
-        "settled close against the one before it. On a Monday morning the "
-        "current price is Friday's, and the date in that line says which close "
-        "you are actually looking at. It also states whether prices are **live** "
-        "or a **recorded snapshot** — recorded data must never be able to look "
-        "live, which is why the source is named rather than implied."
-    )
-
-    if st.button("Close", type="primary", key="about_close"):
+    if st.button("Start exploring", type="primary", key="about_close",
+                 use_container_width=True):
         _dismiss()
         st.rerun()

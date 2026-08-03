@@ -6,26 +6,18 @@ plotly==5.24.1
 anthropic==0.118.0
 python-dotenv==1.0.1
 
-# --- PDF export (report.py) ----------------------------------------------
-# reportlab and svglib are PURE PYTHON and are what actually produce the
-# document: cover, tables, figures, and the marks as embedded vectors. Safe
-# everywhere.
+# --- PDF export (report.py, report_charts.py) -----------------------------
+# All three install everywhere, so the export is NOT conditional on the
+# environment. reportlab and svglib build the document and embed the marks as
+# vectors; matplotlib draws the figures.
+#
+# NOT kaleido, which is the obvious choice for rasterising a Plotly figure and
+# fails in three different ways: 0.2.1 ships no macOS arm64 binary, 1.x refuses
+# Plotly 5.24 through fig.to_image(), and 1.x drives a real headless Chrome
+# that Streamlit Community Cloud does not have. That last one left the DEPLOYED
+# export with tables and no charts, which is not an export. matplotlib needs no
+# browser, ships manylinux wheels, and renders all five figures in ~0.5s
+# against kaleido's ~7s. See report_charts.py.
+matplotlib>=3.8
 reportlab>=4.0
 svglib>=1.5
-
-# kaleido renders Plotly charts to PNG and is DELIBERATELY NOT PINNED HERE as a
-# hard requirement of the feature — report.py treats it as optional and emits a
-# complete, chartless report when it is missing. Three reasons it cannot be
-# trusted as a dependency:
-#
-#   * 0.2.1 ships no macOS arm64 binary. It installs cleanly, then fails at
-#     render with "./bin/kaleido: No such file or directory".
-#   * 1.x is incompatible with Plotly 5.24's fig.to_image(); only kaleido's own
-#     calc_fig_sync() works with a 5.x figure, which is what report.py calls.
-#   * 1.x drives a REAL CHROME process, which Streamlit Community Cloud has
-#     not got and should not be made to download mid-demo.
-#
-# Install it locally to get charts in the PDF — which is the machine where the
-# report's figures are worth generating anyway:
-#     .venv/bin/pip install "kaleido>=1.0"
-kaleido>=1.0; platform_system != "Linux"
