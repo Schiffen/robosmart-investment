@@ -230,6 +230,34 @@ def test_about_dismissal_clears_the_flag():
     assert st.session_state[about._FLAG] is False
 
 
+def test_the_header_cannot_take_the_whole_app_down(monkeypatch):
+    """Reproduces a real outage, exactly as it happened in production.
+
+    Streamlit Community Cloud re-runs app.py on a push but can keep an
+    already-imported module in sys.modules. A deploy that added a NEW function
+    to brand.py landed new app.py against OLD brand: `masthead()` resolved,
+    `page_title()` raised AttributeError at module scope, and the whole app was
+    replaced by a traceback — sidebar rendered, everything else gone.
+
+    Deleting the attribute is a faithful simulation of that state. The app must
+    fall back to a typeset title: losing the drawn mark is cosmetic, losing the
+    portfolio is not.
+    """
+    AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
+    monkeypatch.chdir(BASE)
+    monkeypatch.setenv("USE_MOCK", "1")
+    monkeypatch.delattr(brand, "page_title")
+
+    at = AppTest.from_file(os.path.join(BASE, "app.py"),
+                           default_timeout=90).run()
+    assert not at.exception, (
+        f"a missing brand.page_title took the whole app down: {at.exception}")
+    # And the product name still reaches the page some other way.
+    seen = " ".join([t.value for t in at.title if isinstance(t.value, str)]
+                    + [m.value for m in at.markdown if isinstance(m.value, str)])
+    assert brand.PRODUCT in seen
+
+
 def test_about_is_gated_on_session_state_not_the_button_branch():
     """A dialog exists only for the run that calls it, and this app reruns on
     every sidebar interaction."""

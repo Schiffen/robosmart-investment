@@ -252,21 +252,47 @@ with _head:
     # lockup in the sidebar, ~40px apart. Now each lockup appears once, in the
     # role LOGOS.md assigns it: the seal in the narrow rail, the mirror as the
     # title, and the rose as the stamp on an exported report.
-    st.markdown(brand.page_title(), unsafe_allow_html=True)
+    #
+    # GUARDED, like every view below it. This is the one thing on the page that
+    # was not, and it cost a total outage: Streamlit Community Cloud re-runs
+    # app.py on a push but can keep an already-imported module in sys.modules,
+    # so a deploy that adds a NEW function to brand.py can land new app.py
+    # against old brand. `masthead()` resolved, `page_title()` did not, and an
+    # unguarded AttributeError at module scope takes the entire app down —
+    # sidebar rendered, everything else replaced by a traceback.
+    #
+    # A title is decoration; the portfolio underneath it is the product. Losing
+    # the drawn mark to a typeset one is a cosmetic degradation, and that is the
+    # correct failure for this. Nothing at module scope should be able to white-
+    # screen the app.
+    try:
+        st.markdown(brand.page_title(), unsafe_allow_html=True)
+    except Exception:  # noqa: BLE001 — never let the masthead kill the page
+        st.title(brand.PRODUCT)
 with _actions:
-    _a1, _a2 = st.columns(2)
-    with _a1:
-        about.open_button()
-    with _a2:
-        export.open_button()
+    # Guarded for the same reason as the wordmark above: these are the newest
+    # surface in the app and the likeliest to meet a stale module on a deploy.
+    # A missing Guide button is an inconvenience; a traceback where the
+    # dashboard should be is an outage.
+    try:
+        _a1, _a2 = st.columns(2)
+        with _a1:
+            about.open_button()
+        with _a2:
+            export.open_button()
+    except Exception:  # noqa: BLE001
+        pass
 
 # Re-asserted on EVERY run, not opened once from the button's own branch. A
 # dialog exists only for the script run that calls it, and this app reruns on
 # every sidebar interaction — so a dialog opened inside `if st.button(...)`
 # would disappear the moment the reader touched anything. The open state lives
 # in session_state; this replays it. See about.py.
-about.maybe_render()
-export.maybe_render(ss.portfolio)
+try:
+    about.maybe_render()
+    export.maybe_render(ss.portfolio)
+except Exception as e:  # noqa: BLE001 — a dialog never takes the page with it
+    st.error(f"That panel is unavailable: {e}")
 
 
 def _active_context():
