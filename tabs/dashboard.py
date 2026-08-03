@@ -669,7 +669,7 @@ def collect_report_data(portfolio: dict) -> dict:
     can build the report from any view the reader happens to be on.
     """
     from data_layer import get_benchmark_history, get_context_batch
-    import report_charts as rc
+    from reporting import charts as rc
 
     sym = _sym(portfolio)
     tickers = [p["ticker"] for p in portfolio.get("positions", [])]
@@ -677,22 +677,46 @@ def collect_report_data(portfolio: dict) -> dict:
     df = pm.position_values(portfolio, contexts)
     sector_df = pm.sector_breakdown(df, portfolio)
 
+    # Each figure ships with a sentence explaining WHAT it shows and HOW to
+    # read it. On screen a chart has a heading above it, a caption below and
+    # hover on every point; none of that survives into a PDF someone forwards.
+    # Without the prose the recipient has a picture of some data.
+    #
+    # Order is deliberate: composition then today's move (the pair a reader
+    # compares), then risk then performance. Two land per page.
     charts = []
     try:
-        charts.append(("Where your money is", rc.sector_donut(sector_df, sym)))
+        charts.append((
+            "Where your money is",
+            rc.sector_donut(sector_df, sym),
+            "Your invested equity split by sector — cash is excluded, so these "
+            "add to the invested figure rather than the portfolio total. A "
+            "sector far larger than the others is concentration: it means one "
+            "industry's bad week is your bad week."))
     except Exception:  # noqa: BLE001 — one figure never fails the report
         pass
     try:
         contrib = pm.day_move_contributions(df, portfolio.get("cash", 0.0))
-        charts.append(("What moved your portfolio today",
-                       rc.contribution_bars(contrib, sym)))
+        charts.append((
+            "What moved your portfolio today",
+            rc.contribution_bars(contrib, sym),
+            "Each holding's share of the portfolio's move on the day, not its "
+            "own price change — a small position that jumped can matter less "
+            "than a large one that drifted. Bars right of zero helped, left "
+            "hurt, and they sum to the total move."))
     except Exception:  # noqa: BLE001
         pass
     try:
         corr = pm.correlation_matrix(contexts)
         if corr is not None and len(corr) > 1:
-            charts.append(("How correlated your holdings are",
-                           rc.correlation_heatmap(corr)))
+            charts.append((
+                "How correlated your holdings are",
+                rc.correlation_heatmap(corr),
+                "How closely each pair of holdings has moved together over the "
+                "past year. Near 1.00 means they rise and fall as one, so "
+                "holding both diversifies less than the count of positions "
+                "suggests; near 0 means they move independently. The diagonal "
+                "is blank because a holding always correlates 1.00 with itself."))
     except Exception:  # noqa: BLE001
         pass
     try:
@@ -700,8 +724,13 @@ def collect_report_data(portfolio: dict) -> dict:
         perf = pm.performance_vs_benchmark(contexts, weights,
                                            get_benchmark_history("SPY"))
         if perf is not None and not perf.empty:
-            charts.append(("How this book would have performed",
-                           rc.performance_line(perf)))
+            charts.append((
+                "How this book would have performed",
+                rc.performance_line(perf),
+                "Today's holdings, held at constant weights for the past year "
+                "and indexed to 100 at the start, against the S&P 500. This is "
+                "a backtest of the book you hold NOW, not a record of what you "
+                "actually earned: it ignores trades, costs and taxes."))
     except Exception:  # noqa: BLE001
         pass
 

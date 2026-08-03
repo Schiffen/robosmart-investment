@@ -10,9 +10,10 @@ they are not:
   - kaleido 1.x drives REAL CHROME, which Streamlit Community Cloud has not
     got.
 
-So the contract this file pins is: **the document is produced from pure Python,
-and charts are an enhancement.** Everything below runs WITHOUT Chrome. The
-tests that need it carry `@pytest.mark.pdf` and live in test_chart_interaction.
+None of that applies any more: `reporting.charts` draws with matplotlib, which
+needs no browser. What this file pins is that the whole document — cover,
+tables, analysis AND figures — is produced from pure Python on any platform,
+and that a figure which fails costs that figure and nothing else.
 """
 
 import json
@@ -23,7 +24,7 @@ import pytest
 import brand
 import portfolio_metrics as pm
 import profiles
-import report
+import reporting.document as report
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 pypdf = pytest.importorskip("pypdf")
@@ -72,7 +73,7 @@ def test_report_says_so_when_no_charts_arrive(book):
 def test_a_single_broken_figure_does_not_lose_the_others(book):
     """One figure failing must cost that figure and nothing else."""
     import io
-    import report_charts as rc
+    from reporting import charts as rc
     p, df, sect = book
     good = rc.sector_donut(sect, "$")
     data = report.build(portfolio=p, positions=df, sector_df=sect,
@@ -139,7 +140,7 @@ def test_every_chart_renders_without_a_browser(book):
     renders in-process on any platform. If this ever needs a browser again, the
     export is broken everywhere it matters and nowhere it is tested.
     """
-    import report_charts as rc
+    from reporting import charts as rc
     import portfolio_metrics as pm
     p, df, sect = book
     pngs = [
@@ -157,7 +158,7 @@ def test_report_charts_use_matplotlibs_headless_backend():
     probes for a GUI backend, which on a headless container is at best a wasted
     import and at worst a hang."""
     import matplotlib
-    import report_charts  # noqa: F401
+    from reporting import charts  # noqa: F401
     assert matplotlib.get_backend().lower() == "agg"
 
 
@@ -165,7 +166,7 @@ def test_report_charts_draw_from_the_shared_palette():
     """A second renderer must not become a second palette. Colour comes from
     theme, so the PDF and the screen cannot drift."""
     import inspect
-    import report_charts as rc
+    from reporting import charts as rc
     src = inspect.getsource(rc)
     assert "theme.CATEGORICAL" in src and "theme.GOOD" in src and "theme.BAD" in src
 
@@ -179,7 +180,7 @@ def test_report_charts_compute_nothing(book):
     """
     import ast
     import inspect
-    import report_charts as rc
+    from reporting import charts as rc
 
     # Parse the IMPORTS rather than grepping the source: the module docstring
     # legitimately names portfolio_metrics while explaining this very rule, and
@@ -207,6 +208,26 @@ def test_availability_never_raises_and_always_explains():
     assert isinstance(state["pdf"], bool) and isinstance(state["charts"], bool)
     if not state["charts"]:
         assert state["why"], "an unavailable engine must come with a reason"
+
+
+def test_availability_reports_charts_as_WORKING_here():
+    """The positive case, which nothing else asserted — and it regressed.
+
+    `availability()` probes the renderer inside a try/except that turns any
+    ImportError into `charts: False` plus a polite message. When the modules
+    moved into the `reporting` package, a stale `import report_charts` left
+    behind meant every install reported "charts are excluded" and the export
+    panel said so, on a machine where charts render perfectly. The whole suite
+    stayed green, because every other test asserted only the DEGRADED path.
+
+    A guard that swallows exceptions needs a test that the guard is not firing.
+    """
+    state = report.availability()
+    assert state["pdf"] is True
+    assert state["charts"] is True, (
+        f"charts reported unavailable in an environment that has the "
+        f"renderer: {state['why']}")
+    assert state["why"] == ""
 
 
 # --------------------------------------------------------------------------

@@ -4,7 +4,7 @@ WHAT THIS IS BUILT ON
 ---------------------
     reportlab      the document itself
     svglib         the marks, as embedded VECTORS
-    report_charts  the figures, via matplotlib
+    charts.py      the figures, via matplotlib
 
 All three are pure Python and install everywhere. **The charts are not
 conditional on the environment**, which is the whole point of the export: a
@@ -25,10 +25,10 @@ fails somewhere that matters:
     one per container on first request is not something to put in front of a
     live demo.
 
-So the report does not render Plotly at all. `report_charts` redraws the same
+So the report does not render Plotly at all. `reporting.charts` redraws the same
 DataFrames with matplotlib, which needs no browser, ships manylinux wheels, and
 renders all five figures in about half a second against kaleido's seven. It is
-a second RENDERER, never a second source of numbers — see that module.
+a second RENDERER, never a second source of numbers — see reporting/charts.py.
 
 THE COVER USES THE MIRROR
 -------------------------
@@ -79,7 +79,7 @@ def availability() -> dict:
         state["why"] = f"PDF engine unavailable ({type(e).__name__}: {e})."
         return state
     try:
-        import report_charts  # noqa: F401
+        from reporting import charts  # noqa: F401
         state["charts"] = True
     except Exception as e:  # noqa: BLE001
         state["why"] = (f"Charts are excluded: the figure renderer is "
@@ -124,6 +124,13 @@ def pdf_safe(text) -> str:
     """
     import xml.sax.saxutils as _x
     return _x.escape("" if text is None else str(text))
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    """Greedy word wrap. `textwrap` would do, but this keeps the character
+    budget explicit next to the font size it was measured against."""
+    import textwrap
+    return textwrap.wrap(str(text), width=width)
 
 
 def _money(v, sym="$") -> str:
@@ -412,7 +419,7 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
         flow(items)
 
     # ---- Charts ----------------------------------------------------------
-    # `figures` is (caption, PNG bytes) — already rendered by report_charts.
+    # `figures` is (caption, PNG bytes) — already rendered by reporting.charts.
     # Passing bytes rather than a figure object keeps this module ignorant of
     # which plotting library drew them, which is what made swapping kaleido out
     # for matplotlib a change in one place.
@@ -421,20 +428,64 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
     # Counting only the survivors would make the "charts could not be rendered"
     # notice below unreachable — the empty list looks identical to "no charts
     # were wanted", which is exactly the distinction the notice exists to draw.
+    # TWO FIGURES PER PAGE, EACH WITH ITS OWN EXPLANATION.
+    #
+    # One-per-page put a chart in the top third and left two thirds white, so a
+    # six-figure report ran to eight pages of mostly nothing — and related
+    # figures ("where your money is" / "what moved it today") landed on separate
+    # sheets where they cannot be compared. Two-up closes the gap and puts the
+    # pair a reader wants to read together in one view.
+    #
+    # The prose matters more than the packing. On screen a chart sits under a
+    # heading, beside captions, with hover — none of which survives into a PDF
+    # that gets forwarded. Without a sentence saying what the figure shows and
+    # how to read it, the recipient is looking at a picture of some data.
     requested = list(figures or [])
-    usable = [(cap, png) for cap, png in requested if png]
+    usable = [f for f in requested if f[1]]
     drawn = 0
-    for caption, png in usable:
-        page += 1
-        drawn += 1
+    slots = 0
+
+    for item in usable:
+        caption, png = item[0], item[1]
+        note = item[2] if len(item) > 2 else None
+
+        if slots == 0:                                  # open a page
+            page += 1
+            c.setFillColor(colors.HexColor(PAGE_INK))
+            c.setFont("Helvetica-Bold", 15)
+            c.drawString(20 * mm, H - 24 * mm, "The figures")
+
+        top = (H - 38 * mm) if slots == 0 else (H - 158 * mm)
+        band = 108 * mm                                 # per-slot height budget
+
+        c.setFillColor(colors.HexColor(PAGE_INK))
+        c.setFont("Helvetica-Bold", 11.5)
+        c.drawString(20 * mm, top, caption)
+
+        y = top - 5 * mm
+        if note:
+            c.setFillColor(colors.HexColor(PAGE_MUTED))
+            c.setFont("Helvetica", 8.5)
+            for line in _wrap(note, 118):
+                y -= 4.2 * mm
+                c.drawString(20 * mm, y, line)
+            y -= 1.5 * mm
+
         img = ImageReader(io.BytesIO(png))
         iw, ih = img.getSize()
-        scale = min((W - 40 * mm) / iw, (H - 90 * mm) / ih)
-        c.setFillColor(colors.HexColor(PAGE_INK))
-        c.setFont("Helvetica-Bold", 13)
-        c.drawString(20 * mm, H - 28 * mm, caption)
-        c.drawImage(img, 20 * mm, H - 40 * mm - ih * scale,
+        avail_h = band - (top - y) - 6 * mm
+        scale = min((W - 40 * mm) / iw, avail_h / ih)
+        c.drawImage(img, 20 * mm, y - 4 * mm - ih * scale,
                     width=iw * scale, height=ih * scale, mask="auto")
+
+        drawn += 1
+        slots += 1
+        if slots == 2:                                  # close the page
+            footer(page)
+            c.showPage()
+            slots = 0
+
+    if slots:                                           # a lone trailing figure
         footer(page)
         c.showPage()
 

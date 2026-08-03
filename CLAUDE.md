@@ -42,7 +42,7 @@ No API key at all ⇒ recorded AI regardless of flags.
 ## Commands
 
 ```bash
-.venv/bin/python -m pytest                    # 304 tests, fully offline, ~6s
+.venv/bin/python -m pytest                    # 305 tests, fully offline, ~6s
 .venv/bin/python -m pytest --live             # + parity checks against real yfinance
 .venv/bin/python -m pytest --llm              # + groundedness vs the real model (spends credit)
 .venv/bin/python -m market_data.refresh       # re-record the offline fixture
@@ -62,7 +62,12 @@ previously failed exactly because they reached Yahoo silently.
 ## Architecture
 
 ```
-app.py                  Streamlit shell: sidebar, session state, 3 tabs
+app.py                  Streamlit shell: sidebar, session state, header, 4 views
+brand.py                the marks: seal / mirror / rose, inlined as data: URIs
+about.py                the Guide dialog
+reporting/document.py     the PDF: cover, tables, debate, figures
+reporting/charts.py       those figures, via matplotlib — NO browser, draws only
+reporting/panel.py        the export dialog in the header
 run_mode.py             resolves live-vs-recorded for data and LLM
 portfolio.py            CSV -> portfolio dict (Contract A)
 data_layer.py           Contract-B facade; dispatches to a provider PER CALL
@@ -121,7 +126,7 @@ theme.py                shared design tokens
 
 ## Current state
 
-**304 tests passing offline** (~6s) and **322 with `--live`**, plus
+**305 tests passing offline** (~6s) and **323 with `--live`**, plus
 model-groundedness (`--llm`). Verified end to end in all three modes, locally and on the
 deployed app — and, as of 2026-08-03, in a real browser at 1440px and at an emulated 390px
 phone, on **live market data** rather than only on the fixture.
@@ -308,7 +313,7 @@ whether a debate will be included — while you can still go and run one.
 > **silently truncating** claims/falsifiers/explanations to the first 3–4. Those caps are
 > gone; an artifact people send onward must not quietly drop analysis.
 
-**304 offline · 322 with `--live`** (was 199/209).
+**305 offline · 323 with `--live`** (was 199/209).
 
 ### Design pass 2 — surfaces and composition (2026-08-01)
 

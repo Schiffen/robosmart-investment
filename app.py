@@ -18,7 +18,7 @@ import streamlit as st
 import about
 import brand
 import data_layer
-import export
+from reporting import panel as export
 import profiles
 import run_mode
 import theme
@@ -247,7 +247,12 @@ with st.sidebar:
 # used to sit and where nobody scrolls to find it.
 _head, _actions = st.columns([7, 3], vertical_alignment="bottom")
 with _head:
-    st.title(brand.PRODUCT)
+    # The drawn mirror IS the h1 — see brand.page_title(). The product name was
+    # set twice on this screen: as type here and as the seal-plus-wordmark
+    # lockup in the sidebar, ~40px apart. Now each lockup appears once, in the
+    # role LOGOS.md assigns it: the seal in the narrow rail, the mirror as the
+    # title, and the rose as the stamp on an exported report.
+    st.markdown(brand.page_title(), unsafe_allow_html=True)
 with _actions:
     _a1, _a2 = st.columns(2)
     with _a1:

@@ -1157,6 +1157,35 @@ section.stMain button[data-variant="segmented_control"][aria-checked="true"] {{
      selected/unselected work. */
   color: {INK} !important;
 }}
+/* ---- 14b. The drawn wordmark as the page h1 ---------------------------
+   The mirror replaces the typeset title. h1's own type styling (rule 6) is
+   irrelevant to an image, and Streamlit's default h1 margins would push the
+   mark away from the actions it shares a row with — so the box is reset and
+   the mark carries its own clear space instead.
+
+   Below 900px the actions column collapses under the title and a 420px mark
+   plus two buttons no longer fit side by side; the mark scales with the
+   column (max-width:100%) and the reflection degrades gracefully rather than
+   cropping. Below 560px it is dropped to 300px, under the mark's own
+   legibility floor but above the point where it would overflow — a smaller
+   mirror is a worse outcome than a slightly soft one. */
+section.stMain h1.rs-wordmark {{
+  /* Clear space, per LOGOS.md: the rule's height x 8 on all four sides, and
+     "nothing may sit inside the reflection — it is part of the mark, not
+     decoration around it". The rule is 3 units of a 238 viewBox, so at 140px
+     tall it renders ~1.8px and the required clearance is ~14px. The first
+     version set margin-bottom to .1rem and the freshness caption came up hard
+     against "DEBATE CLUB", which reads as the two being one block. */
+  margin: .35rem 0 1.35rem !important;
+  padding: 0 !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+}}
+section.stMain h1.rs-wordmark img {{ opacity: .96; }}
+@media (max-width: 560px) {{
+  section.stMain h1.rs-wordmark img {{ width: 300px !important; }}
+}}
+
 /* ---- 15. The Guide dialog ----------------------------------------------
    SCOPED TO .stDialog, DELIBERATELY NOT NESTED UNDER section.stMain.
 

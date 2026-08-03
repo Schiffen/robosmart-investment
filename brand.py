@@ -127,6 +127,37 @@ def masthead(height: int = 44) -> str:
     )
 
 
+def page_title(width: int = 420) -> str:
+    """The page's <h1>, set as the drawn mirror rather than as type.
+
+    LOGOS.md gives the mirror splash screens, title pages and report covers,
+    and explicitly BANS it from a masthead — "in a horizontal bar it either
+    gets cropped or forces the bar to three times its natural height. That
+    position belongs to the seal." That ban is about the SIDEBAR bar, which is
+    300px wide and holds the seal already. This is the page's title area, which
+    is ~900px wide at desktop and was carrying an <h1> plus a band of empty
+    ground above it; the mark fits there without cropping and without forcing
+    anything.
+
+    Sized by WIDTH here, unlike every other placement, because the mirror's
+    constraint is a width one: below ~450px the reflection stops resolving and
+    reads as a printing fault. 420px is marginally under that floor and is the
+    considered trade — the alternative is 150px of vertical chrome on top of
+    every view, which is the cost LOGOS.md is warning about in the first place.
+    Do not go smaller.
+
+    A REAL <h1> carrying real alt text, not a decorative image beside a hidden
+    heading. The document keeps exactly one h1, a screen reader announces the
+    product name from it, and the outline stays h1 -> h2 -> h3.
+    """
+    return (
+        f'<h1 class="rs-wordmark">'
+        f'<img src="{data_uri("mirror")}" alt="{PRODUCT}" '
+        f'style="display:block;width:{width}px;max-width:100%;height:auto" />'
+        f'</h1>'
+    )
+
+
 def favicon_tag() -> str:
     """A <link rel="icon"> carrying the seal inline.
 

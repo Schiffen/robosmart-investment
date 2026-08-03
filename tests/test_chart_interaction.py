@@ -223,7 +223,7 @@ def test_every_chart_survives_a_real_static_export(name):
     That is the whole reason report.py treats charts as optional.
     """
     pytest.importorskip("kaleido")
-    import report
+    from reporting import document as report
     png = report._png(_every_figure()[name], width=700, height=350)
     assert png, f"{name} could not be exported"
     assert png[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"

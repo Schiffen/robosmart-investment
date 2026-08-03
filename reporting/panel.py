@@ -52,7 +52,7 @@ def maybe_render(portfolio: dict | None) -> None:
 
 @st.dialog("Export this analysis", width="medium", on_dismiss=_dismiss)
 def _dialog(portfolio: dict | None) -> None:
-    import report
+    from reporting import document as report
 
     if not portfolio or not portfolio.get("positions"):
         st.info("Load a portfolio first — there is nothing to export yet.")

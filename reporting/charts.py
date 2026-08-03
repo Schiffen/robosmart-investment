@@ -1,4 +1,4 @@
-"""report_charts.py — the report's figures, drawn WITHOUT a browser.
+"""reporting/charts.py — the report's figures, drawn WITHOUT a browser.
 
 WHY THIS EXISTS AT ALL
 ----------------------
