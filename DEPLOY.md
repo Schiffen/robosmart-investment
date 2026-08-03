@@ -60,22 +60,17 @@ git status --short          # anything with ?? is NOT going to be deployed
 
 ---
 
-## Dependencies, and the one that is deliberately optional
+## Dependencies
 
-`requirements.txt` is pinned and deliberately lean. Two notes:
+`requirements.txt` is pinned and deliberately lean. The PDF export adds three, all pure
+Python, all installing cleanly on Cloud: **reportlab** and **svglib** build the document
+and embed the marks as vectors; **matplotlib** draws the figures.
 
-- **`reportlab` and `svglib`** are pure Python and produce the PDF export — the cover,
-  the tables, and the logos as embedded vectors. They install fine on Cloud.
-- **`kaleido`** renders Plotly charts into the PDF and is scoped
-  `platform_system != "Linux"`, so **Community Cloud does not install it**. It drives a
-  real headless Chrome, which the container does not have and should not be made to
-  download mid-demo.
-
-  This is not a defect. `report.py` treats charts as an enhancement: without the engine
-  the export still produces a complete document and prints one line saying the charts
-  could not be rendered. Tests pin that path, and it was verified by simulating the
-  import failure. **To get charts in the PDF, generate it locally** — which is the machine
-  where a report's figures are worth producing anyway.
+**Not kaleido.** It is the obvious way to rasterise a Plotly figure and it fails three
+ways: 0.2.1 ships no macOS arm64 binary, 1.x refuses Plotly 5.24 through `fig.to_image()`,
+and 1.x drives a **real headless Chrome** that Community Cloud does not have. That last one
+left the deployed export with tables and no charts. `reporting/charts.py` redraws the same
+DataFrames with matplotlib instead — no browser, and ~0.5s against kaleido's ~7s.
 
 ---
 
@@ -115,21 +110,6 @@ Live market data, and live Anthropic if `ANTHROPIC_API_KEY` is in `.env`. Use
 
 Run modes (`run_mode.py`): `USE_MOCK=1` for fully offline, `USE_MOCK_DATA=1` to freeze the
 market while iterating on prompts, `USE_MOCK_LLM=1` for the reverse.
-
----
-
-## Confirming a deploy actually worked
-
-Reload the app and check, in order:
-
-1. **It boots at all** — a `ModuleNotFoundError` here is almost always the `add -A` trap.
-2. **The line under the title** reads *"Live market data · prices as of the close on …"*.
-   If it says **recorded snapshot**, the API key or the secrets bridge is not working —
-   the app is serving canned output and looking fine.
-3. **The tab icon and sidebar** show the seal.
-4. **Bull vs Bear** actually calls the model rather than replaying `mock_debate.json`.
-5. **Dashboard → Export → Generate PDF report** produces a file. On Cloud it will
-   correctly say charts are excluded; the tables and the debate must still be there.
 
 ---
 
