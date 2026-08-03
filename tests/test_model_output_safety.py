@@ -17,6 +17,7 @@ These tests pin both halves.
 """
 
 import os
+import re
 
 import pytest
 
@@ -168,11 +169,27 @@ def test_a_hostile_debate_renders_without_emitting_markup(monkeypatch):
 
     body = "\n".join(m.value for m in at.markdown if isinstance(m.value, str))
 
+    # The app now emits <img> of its OWN — the brand marks in the sidebar
+    # masthead, inlined as base64 data: URIs by brand.py. Those are
+    # app-authored, read from local files, and are exactly the trusted markup
+    # this test was never about.
+    #
+    # So strip them FIRST and then sweep for tags. The pattern is deliberately
+    # narrow: it matches only an <img> whose src is an inline SVG data URI,
+    # which is a shape no model-authored string can reach — the payload here is
+    # `<img src=x onerror=alert(1)>`, and `src=x` cannot satisfy it. Widening
+    # this to a bare `<img[^>]*>` would gut the assertion, because that is the
+    # exact tag the attack emits.
+    trusted_mark = r'<img src="data:image/svg\+xml;base64,[A-Za-z0-9+/=]+"[^>]*>'
+    assert re.search(trusted_mark, body), \
+        "the app's own brand marks did not render — strip pattern is stale"
+    swept = re.sub(trusted_mark, "", body)
+
     # What matters is whether a TAG survives, not whether the characters do.
     # "onerror=alert(1)" as escaped text content is inert; the danger is the
     # angle bracket that would open an element around it.
-    assert "<img" not in body, "raw <img> tag reached the page"
-    assert "<script" not in body, "raw <script> tag reached the page"
+    assert "<img" not in swept, "raw <img> tag reached the page"
+    assert "<script" not in swept, "raw <script> tag reached the page"
 
     # The payload IS present, escaped — so we know it rendered rather than
     # being silently dropped, which would make this test pass for the wrong

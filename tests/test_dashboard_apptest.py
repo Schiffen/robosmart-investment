@@ -6,7 +6,13 @@ import os
 import pytest
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP = os.path.join(BASE, "_preview_app.py")
+# app.py — the REAL entry point. This used to run `_preview_app.py`, a dev-only
+# harness that wired the dashboard by hand, so the end-to-end test exercised a
+# file no user ever loads: it had its own page_config, its own emoji icon, and
+# none of app.py's sidebar, router or session-state wiring. The harness has
+# been deleted (its own README said "delete before submission"); pointing this
+# at app.py is what makes the assertions below mean something.
+APP = os.path.join(BASE, "app.py")
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <g transform="translate(120 120)">
+  <circle cx="0" cy="0" r="117" fill="none" stroke="#E6EDF3" stroke-width="3"></circle>
+  <circle cx="0" cy="0" r="106" fill="none" stroke="#E6EDF3" stroke-width="1" opacity="0.55"></circle>
+  <circle cx="0" cy="0" r="70" fill="none" stroke="#E6EDF3" stroke-width="1" opacity="0.55"></circle>
+  <g transform="rotate(-65.7 0 0) translate(-9.86 -100) scale(0.34)">
+  <path d="M0 0 H12 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M12 0 H44 L58 14 V26 L44 40 H12 Z M12 12 V28 H40 L46 22 V18 L40 12 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M30 40 H45 L58 72 H43 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-49.94 0 0) translate(-10.2 -100) scale(0.34)">
+  <path d="M0 14 L14 0 H46 L60 14 V58 L46 72 H14 L0 58 Z M12 20 V52 L20 60 H40 L48 52 V20 L40 12 H20 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-34.18 0 0) translate(-9.86 -100) scale(0.34)">
+  <path d="M0 0 H12 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M12 0 H44 L56 12 V24 L46 34 L58 46 V60 L46 72 H12 Z M12 12 V26 H40 L44 22 V16 L40 12 Z M12 46 V60 H42 L46 56 V50 L42 46 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-18.42 0 0) translate(-10.2 -100) scale(0.34)">
+  <path d="M0 14 L14 0 H46 L60 14 V58 L46 72 H14 L0 58 Z M12 20 V52 L20 60 H40 L48 52 V20 L40 12 H20 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-2.89 0 0) translate(-9.52 -100) scale(0.34)">
+  <path d="M0 14 L14 0 H56 V12 H12 V30 H56 V58 L42 72 H0 V60 H44 V42 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(13.98 0 0) translate(-12.24 -100) scale(0.34)">
+  <path d="M0 72 V0 H14 L36 34 L58 0 H72 V72 H60 V22 L40 52 H32 L12 22 V72 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(31.52 0 0) translate(-10.54 -100) scale(0.34)">
+  <path d="M0 72 L16 0 H46 L62 72 H48 L44 52 H18 L14 72 Z M21 40 H41 L36 14 H26 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(47.5 0 0) translate(-9.86 -100) scale(0.34)">
+  <path d="M0 0 H12 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M12 0 H44 L58 14 V26 L44 40 H12 Z M12 12 V28 H40 L46 22 V18 L40 12 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M30 40 H45 L58 72 H43 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(63.04 0 0) translate(-9.86 -100) scale(0.34)">
+  <path d="M0 0 H58 V12 H35 V72 H23 V12 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(74.18 0 0) translate(-9.86 76) scale(0.34)">
+  <path d="M0 0 H44 L58 14 V58 L44 72 H0 Z M12 12 V60 H40 L46 54 V18 L40 12 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(59.39 0 0) translate(-8.84 76) scale(0.34)">
+  <path d="M0 0 H52 V12 H12 V30 H46 V42 H12 V60 H52 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(44.6 0 0) translate(-9.86 76) scale(0.34)">
+  <path d="M0 0 H12 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M12 0 H44 L56 12 V24 L46 34 L58 46 V60 L46 72 H12 Z M12 12 V26 H40 L44 22 V16 L40 12 Z M12 46 V60 H42 L46 56 V50 L42 46 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(28.7 0 0) translate(-10.54 76) scale(0.34)">
+  <path d="M0 72 L16 0 H46 L62 72 H48 L44 52 H18 L14 72 Z M21 40 H41 L36 14 H26 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(12.8 0 0) translate(-9.86 76) scale(0.34)">
+  <path d="M0 0 H58 V12 H35 V72 H23 V12 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-1.99 0 0) translate(-8.84 76) scale(0.34)">
+  <path d="M0 0 H52 V12 H12 V30 H46 V42 H12 V60 H52 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-26.93 0 0) translate(-9.86 76) scale(0.34)">
+  <path d="M58 14 L44 0 H14 L0 14 V58 L14 72 H44 L58 58 V46 H46 V54 L40 60 H18 L12 54 V18 L18 12 H40 L46 18 V26 H58 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-41.5 0 0) translate(-8.5 76) scale(0.34)">
+  <path d="M0 0 H12 V60 H50 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-56.08 0 0) translate(-9.86 76) scale(0.34)">
+  <path d="M0 0 H12 V54 L18 60 H40 L46 54 V0 H58 V58 L44 72 H14 L0 58 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <g transform="rotate(-71.53 0 0) translate(-9.86 76) scale(0.34)">
+  <path d="M0 0 H12 V72 H0 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  <path d="M12 0 H44 L56 12 V24 L46 34 L58 46 V60 L46 72 H12 Z M12 12 V26 H40 L44 22 V16 L40 12 Z M12 46 V60 H42 L46 56 V50 L42 46 Z" fill="#E6EDF3" fill-rule="evenodd"></path>
+  </g>
+  <rect x="-92" y="-5" width="10" height="10" fill="#E6EDF3"></rect>
+  <rect x="82" y="-5" width="10" height="10" fill="#E6EDF3"></rect>
+  <g transform="translate(-45.6 -45.6) scale(3.8)">
+  <path d="M12 8.6 L12 -2.2" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M13.7 9.06 L17.4 2.65" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M14.94 10.3 L23.26 5.5" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M15.4 12 L20.6 12" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M14.94 13.7 L22.22 17.9" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M13.7 14.94 L15.9 18.75" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M12 15.4 L12 25.6" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M10.3 14.94 L7.2 20.31" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M9.06 13.7 L1.26 18.2" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M8.6 12 L3.8 12" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M9.06 10.3 L2.3 6.4" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <path d="M10.3 9.06 L6.9 3.17" stroke="#E6EDF3" stroke-width="1.9"></path>
+  <circle cx="12" cy="12" r="1.5" fill="#E6EDF3"></circle>
+  </g>
+  </g>
+</svg>

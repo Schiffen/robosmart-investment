@@ -12,6 +12,14 @@ _OPT_IN = {
     # marker -> (cli flag, why it is opt-in)
     "live": ("--live", "hits real yfinance"),
     "llm": ("--llm", "spends real Anthropic API calls"),
+    # kaleido 1.x renders Plotly by driving a real Chrome process. Five of
+    # these took the offline suite from 4.3s to 14.2s, and they fail wherever
+    # Chrome is absent — which is most CI and every Streamlit Community Cloud
+    # container. That is an EXTERNAL dependency in exactly the sense the other
+    # two markers exist for, so it is declared rather than acquired by
+    # accident. report.py is built so its absence degrades the PDF instead of
+    # breaking it, and the tests that prove THAT stay offline.
+    "pdf": ("--pdf", "renders charts through a real Chrome via kaleido"),
 }
 
 
@@ -20,6 +28,8 @@ def pytest_configure(config):
         "markers", "live: reaches real yfinance; skipped unless --live")
     config.addinivalue_line(
         "markers", "llm: spends real Anthropic API calls; skipped unless --llm")
+    config.addinivalue_line(
+        "markers", "pdf: renders charts via kaleido/Chrome; skipped unless --pdf")
 
 
 def pytest_addoption(parser):
@@ -27,6 +37,8 @@ def pytest_addoption(parser):
                      help="also run tests marked `live` (real yfinance)")
     parser.addoption("--llm", action="store_true", default=False,
                      help="also run tests marked `llm` (real Anthropic API calls, costs money)")
+    parser.addoption("--pdf", action="store_true", default=False,
+                     help="also run tests marked `pdf` (static chart export; needs Chrome)")
 
 
 def pytest_collection_modifyitems(config, items):

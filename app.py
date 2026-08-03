@@ -1,6 +1,6 @@
 """
-app.py — RoboSmart Investment (shell + wiring).
-===============================================
+app.py — RoboSmart Debate Club (shell + wiring).
+================================================
 No business logic here — this only wires the sidebar, session state, and the
 three views together. Each view is one function from another module.
 
@@ -10,10 +10,13 @@ USE_MOCK_LLM pin one axis without the other.
 """
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 import streamlit as st
 
+import about
+import brand
 import data_layer
 import profiles
 import run_mode
@@ -62,13 +65,32 @@ def _adopt_streamlit_secrets() -> None:
 # view import resolve their mode from it.
 _adopt_streamlit_secrets()
 
-st.set_page_config(page_title="RoboSmart Investment", layout="wide",
-                   page_icon="assets/robosmart-mark.svg")
-# The authored mark, not an emoji. st.logo reads the file server-side and
-# inlines it as a base64 data: URI, so there is no network fetch and nothing to
-# fail on a cold Community Cloud start.
-st.logo("assets/robosmart-mark.svg", size="large")
+# ABSOLUTE, not "assets/robosmart-mark.svg". Both of these resolve a relative
+# path against the PROCESS WORKING DIRECTORY, not against app.py — and when the
+# file is not found, page_config's favicon path swallows the error in a bare
+# `except Exception` (the fall-through that lets `:shark:` work) and hands the
+# frontend the raw string, which then 404s. No exception, no warning, no log
+# line: the tab just shows the browser's default icon and nobody notices until
+# someone else is looking at the screen. Community Cloud happens to run from
+# the repo root, so this was correct by luck rather than by construction.
+_MARK = str(brand.LOGO_DIR / "seal.svg")
+st.set_page_config(page_title=brand.PRODUCT, layout="wide", page_icon=_MARK)
+# THE SEAL, not assets/robosmart-mark.svg. Rendering the app put both on screen
+# at once — the old blue rising-line glyph in Streamlit's top-left logo slot and
+# the new drawn seal in the sidebar masthead, ~90px apart. Two marks visible
+# together do not read as one identity with two lockups; they read as an app
+# that changed its mind. LOGOS.md assigns this position to the seal (1:1,
+# survives the narrow rail, legible small), so the seal takes it.
+#
+# st.logo reads the file server-side and inlines it as a base64 data: URI, so
+# there is no network fetch and nothing to fail on a cold Community Cloud start.
+st.logo(_MARK, size="large")
 theme.inject_css()
+# The favicon goes in SEPARATELY from page_icon above. page_icon is not a
+# reliable route for SVG, and a tab icon that silently does not render is the
+# kind of thing nobody notices until someone else is looking at the screen.
+# This is belt and braces: whichever of the two works, the tab is marked.
+st.markdown(brand.favicon_tag(), unsafe_allow_html=True)
 
 ss = st.session_state
 ss.setdefault("portfolio", None)
@@ -116,11 +138,12 @@ with st.sidebar:
     # Not st.title(): that emits a second <h1>, and a page has one. The main
     # heading is the document's h1; this is a masthead, so it is styled as one
     # rather than claiming heading semantics it does not have.
-    st.markdown(
-        "<div style='font-size:1.35rem;font-weight:700;letter-spacing:-.015em;"
-        "margin:.2rem 0 1rem'>RoboSmart</div>",
-        unsafe_allow_html=True,
-    )
+    #
+    # Now the drawn seal beside the wordmark rather than the wordmark alone.
+    # See brand.masthead() for why 44px is correct here despite LOGOS.md's
+    # 72px floor — the floor protects a seal carrying the name BY ITSELF, and
+    # here the name is set in type immediately beside it.
+    st.markdown(brand.masthead(), unsafe_allow_html=True)
 
     # ---- Sample investor books ------------------------------------------
     # One engine, five different verdicts. Each profile states what it should
@@ -207,6 +230,9 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
+    about.open_button()
+
+    st.divider()
     # State the resolved mode explicitly. Recorded data that looks live is the
     # failure this whole layer exists to prevent, so the snapshot date is named.
     mode_line = run_mode.summary_line()
@@ -216,7 +242,14 @@ with st.sidebar:
 
 
 # ---- Header --------------------------------------------------------------
-st.title("RoboSmart Investment")
+st.title(brand.PRODUCT)
+
+# Re-asserted on EVERY run, not opened once from the button's own branch. A
+# dialog exists only for the script run that calls it, and this app reruns on
+# every sidebar interaction — so a dialog opened inside `if st.button(...)`
+# would disappear the moment the reader touched anything. The open state lives
+# in session_state; this replays it. See about.py.
+about.maybe_render()
 
 
 def _active_context():
@@ -313,4 +346,5 @@ elif view == "What Happened Today":
         st.error(f"Attribution unavailable: {e}")
 
 st.divider()
-st.caption("RoboSmart is an educational university project. **This is not investment advice.**")
+st.caption(f"{brand.PRODUCT} is an educational university project. "
+           f"**This is not investment advice.**")

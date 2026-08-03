@@ -189,13 +189,43 @@ def safe_md(text) -> str:
 # Charts
 # --------------------------------------------------------------------------
 
-def style_fig(fig, height: int = 340):
+def style_fig(fig, height: int = 340, *, zoom: bool = False):
     """Apply the shared dark Plotly styling to any figure. Works on donut,
     heatmap, line, waterfall, bar — anything the tabs draw.
 
     `displayModeBar` is suppressed at the call site (see chart_config): the
     modebar contributed 7 tab stops per chart, and on the Dashboard that was
     ~24 of ~40 focus stops going to plumbing rather than to the app.
+
+    `zoom` DEFAULTS TO FALSE, and that default is the bug fix.
+
+    Plotly's cartesian default is `dragmode="zoom"` — box-zoom on drag. Nothing
+    here ever set it, so every cartesian figure in the app inherited it while
+    the modebar that would normally RESET it was suppressed. The result: drag a
+    chart and it zooms in, with no control anywhere on the page to get back.
+    Double-click does reset, but nothing announces that, so in practice the
+    chart was a trap. On touch it is worse than a trap — dragging is also how
+    the page scrolls, so a reader scrolling PAST a chart zoomed it instead and
+    then could not scroll on.
+
+    The fix is deny-by-default, the same shape as this project's offline test
+    suite: the risky capability has to be DECLARED, never inherited. Four of
+    the five charts have no meaningful zoom at all —
+
+        donut             a pie; cannot zoom
+        heatmap           an 8x8 correlation matrix; a zoomed corner is noise
+        contribution_bar  categorical; the y axis is ticker names
+        waterfall         four bars that sum to a whole; a subset is meaningless
+
+    — so they take the default and become inert to drag. Only a real TIME
+    SERIES opts in with `zoom=True`, and when it does it gets `dragmode="pan"`,
+    not `"zoom"`: panning is reversible by the same gesture that caused it,
+    box-zoom is not. Range selection is the authored control instead, where
+    "1Y" is simultaneously the home view and the reset (see tabs/_chart_range).
+
+    `scrollZoom` stays False in CHART_CONFIG regardless. A chart that eats the
+    scroll wheel is the single most complained-about behaviour on mobile, and
+    nothing here is worth that.
     """
     # Charts paint NO background of their own. The panel underneath is the
     # surface (see CSS rule 11), and a chart that painted its own opaque
@@ -219,6 +249,9 @@ def style_fig(fig, height: int = 340):
         legend=dict(bgcolor="rgba(0,0,0,0)"),
         hoverlabel=dict(bgcolor=SURFACE, bordercolor=CONNECTOR,
                         font=dict(color=INK, size=12)),
+        # See the `zoom` note in the docstring. False makes the figure inert to
+        # drag while leaving hover — and therefore every tooltip — untouched.
+        dragmode="pan" if zoom else False,
     )
     # Only touch `title` when there IS one. Setting title=dict(font=...)
     # unconditionally makes plotly.py emit a title object with a font and no
@@ -236,8 +269,140 @@ def style_fig(fig, height: int = 340):
 
 
 # Passed to every st.plotly_chart. Kills the 7-button modebar.
+#
+# `scrollZoom` is False and must STAY False. It is the one setting that would
+# let a chart eat the page's scroll gesture, which on a phone means a reader
+# cannot get past the chart at all. See style_fig's `zoom` note.
 CHART_CONFIG = {"displayModeBar": False, "displaylogo": False,
                 "staticPlot": False, "scrollZoom": False}
+
+
+# --- Time-range control for series charts ---------------------------------
+# The authored replacement for the modebar's zoom/reset pair.
+#
+# Presets rather than a +/- zoom, for three reasons that all point the same
+# way. They are the vocabulary the domain already uses, so no one has to be
+# taught them. They are ABSOLUTE, so pressing one twice does nothing — where
+# "+" pressed twice compounds, which is precisely how the old box-zoom became
+# inescapable. And the home view is one of the presets rather than a separate
+# hidden state, so RESET IS ALWAYS VISIBLE and always one tap; there is no
+# "how do I get back" because getting back is the rightmost pill, already lit.
+RANGE_PRESETS = ("1M", "3M", "6M", "YTD", "1Y")
+RANGE_HOME = "1Y"                     # the declared home view AND the reset
+
+# Calendar days back per preset. YTD and 1Y are resolved against the data.
+_RANGE_DAYS = {"1M": 30, "3M": 91, "6M": 182}
+
+
+def range_bounds(index, preset: str = RANGE_HOME):
+    """The x-axis window for `preset`, as (start, end) — or None if unresolvable.
+
+    PURE: no Streamlit, no plotly. It takes a DatetimeIndex and returns two
+    timestamps, which is what makes it directly testable and what lets the
+    "1Y restores the home view EXACTLY" assertion be an equality check rather
+    than an eyeball.
+
+    RANGE_HOME returns the data's own full span rather than "today minus 365
+    days". Those are not the same window — the series carries ~251 trading bars
+    over a 365-day calendar, so a date-arithmetic 1Y would leave a sliver of
+    empty axis at the left edge and, worse, would not be reproducible: it would
+    drift every day while the recorded fixture stayed still. The full span is
+    stable, and it is the range a reader sees on first paint.
+    """
+    # pandas stays out of theme.py's module-level imports, which are html/re/
+    # numpy by design — same reasoning as the lazy `import streamlit` in
+    # inject_css/notice/section.
+    import pandas as pd
+
+    if index is None or len(index) == 0:
+        return None
+    start, end = index[0], index[-1]
+    if preset == RANGE_HOME:
+        return (start, end)
+    if preset == "YTD":
+        want = end.replace(month=1, day=1)
+    else:
+        days = _RANGE_DAYS.get(preset)
+        if days is None:                       # unknown preset -> home, not a crash
+            return (start, end)
+        want = end - pd.Timedelta(days=days)
+    # Clamp. A short series (a young listing, or a trimmed fixture) can start
+    # AFTER the requested window, and an x-range reaching into empty space
+    # renders as a chart that looks broken rather than one that looks short.
+    return (max(want, start), end)
+
+
+def range_control(key: str, *, presets=RANGE_PRESETS, default: str = RANGE_HOME) -> str:
+    """Render the range picker; return the ACTIVE preset.
+
+    Real Streamlit widgets, not modebar icons. That buys three things the
+    modebar could not: they are in the tab order and operable from the
+    keyboard, they inherit the app's own 44px-plus tap targets on mobile
+    instead of the modebar's ~20px glyphs, and they carry text labels rather
+    than icons whose meaning has to be inferred.
+
+    Cost is honest: 5 tab stops per series chart. The modebar was 7 per chart
+    across FIVE charts (~24 of ~40 focus stops on the Dashboard were plumbing);
+    this is 5 stops across the two charts that are actually series. Fewer
+    stops, and every one of them does something a reader asked for.
+    """
+    import streamlit as st
+    state_key = f"_range_{key}"
+    epoch_key = f"_epoch_{key}"
+    st.session_state.setdefault(state_key, default)
+    st.session_state.setdefault(epoch_key, 0)
+
+    def _bump():
+        # Fires on EVERY interaction with the control, including re-selecting
+        # the preset that is already active. See chart_key() for why that case
+        # is the one that matters.
+        st.session_state[epoch_key] += 1
+
+    current = st.session_state[state_key]
+    picked = st.segmented_control(
+        "Time range", list(presets),
+        default=current if current in presets else default,
+        key=f"{state_key}_widget", label_visibility="collapsed",
+        on_change=_bump,
+    )
+    # segmented_control returns None when the user clicks the ALREADY-ACTIVE
+    # item, which deselects it. Falling through with None would blank the
+    # chart's range and, on the next rerun, silently snap it back to the
+    # default — the same class of defect that made st.tabs unusable as the view
+    # router here. Keep the last real choice; a range chart always has a range.
+    if picked:
+        st.session_state[state_key] = picked
+    return st.session_state[state_key]
+
+
+def chart_key(key: str, preset: str) -> str:
+    """The `key=` for a series chart's st.plotly_chart. Bumping it resets pan.
+
+    THIS EXISTS BECAUSE STREAMLIT PERSISTS PLOTLY VIEW STATE, which is not
+    obvious and is not documented where you would look for it. Every plotly
+    relayout — a pan is one — writes the whole mutated figure into
+    WidgetStateManager.elementStates, keyed on an element id that Streamlit
+    hashes FROM THE FIGURE SPEC (streamlit/elements/plotly_chart.py, "to also
+    allow non-widget Plotly charts to keep their state"). Nothing re-derives
+    the axes from the incoming spec after mount.
+
+    The consequence is a trap with a very narrow mouth. Switching preset
+    changes the spec, so the id changes, so the chart remounts and the pan is
+    discarded — reset appears to work perfectly. But pan while ALREADY on the
+    home preset and press home again: the spec is byte-identical, the id is
+    unchanged, the component never remounts, and the pan survives the button
+    that exists to undo it. That is the original defect wearing a different
+    hat, and it would have shipped looking fixed.
+
+    An explicit epoch in the key closes it. `key` is hashed IN ADDITION to the
+    spec (key_as_main_identity=False), so changing it always forces a remount.
+
+    Not `uirevision`: Streamlit never reads that property — it only "works" by
+    perturbing the same spec hash, which is this mechanism by accident and via
+    a figure property that means something else to plotly.
+    """
+    import streamlit as st
+    return f"{key}-{preset}-{st.session_state.get(f'_epoch_{key}', 0)}"
 
 
 # A NEUTRAL ramp for strength, used where green/red already mean something else.
@@ -576,6 +741,50 @@ section.stMain h2:not(.rs-section) {{
   section.stMain [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
     flex: 1 1 100% !important;
     min-width: 100% !important;
+  }}
+}}
+
+/* ---- 6b. The sidebar OVERLAYS on a phone; it does not squeeze ----------
+   Measured in a real 390px viewport, not inferred: opening the sidebar left
+   `section.stMain` at 90px wide. The page title wrapped to "Robo / Smar / t /
+   Deba / te / Club" — one word per line, six lines — and the lede's figures
+   went with it. The sidebar is a fixed 300px, so on a 390px phone there are
+   90px left over and Streamlit spends them rendering the page rather than
+   getting out of the way.
+
+   `position: fixed` lifts the sidebar out of the flex row, so main keeps the
+   full viewport and the panel floats above it. That is what a drawer is.
+
+   THE SCRIM IS A BOX-SHADOW, and that is a deliberate choice rather than a
+   trick for its own sake. Streamlit already ships outside-tap-to-dismiss — a
+   document-level `mousedown` listener, live below 767.98px, which collapses
+   the sidebar when the event target is inside the app and outside
+   `stSidebarContent`. It works; it is simply invisible, because Streamlit
+   draws no dimming layer, so nothing tells a reader the gesture exists.
+
+   An overlay <div> would announce it — and would also become the mousedown
+   target. `pointer-events:none` would fix that, but it is one careless edit
+   away from silently breaking a working interaction. A box-shadow cannot take
+   a pointer event at all: there is no element to hit. The affordance becomes
+   visible and the handler underneath it stays untouched by construction.
+   Verified in the browser: with this rule applied, an outside tap still flips
+   aria-expanded true -> false.
+
+   100vmax of spread covers any viewport in both axes. Breakpoint is
+   767.98px to match Streamlit's own threshold exactly (its `md` breakpoint,
+   768px, minus the 0.02 it subtracts) — a near-miss here would leave a band
+   of widths where the panel floats but the tap-to-dismiss does not fire.
+
+   No transition, deliberately: rule 7's `prefers-reduced-motion` block is an
+   explicit allow-list, so an animated selector added here would silently
+   escape it. */
+@media (max-width: 767.98px) {{
+  section[data-testid="stSidebar"][aria-expanded="true"] {{
+    position: fixed !important;
+    top: 0; bottom: 0; left: 0;
+    height: 100dvh !important;
+    z-index: 999991 !important;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .62);
   }}
 }}
 [data-testid="stMetricValue"] > div,

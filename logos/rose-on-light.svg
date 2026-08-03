@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3.15 -3.15 30.30 30.30" role="img" aria-label="RoboSmart Debate Club">
+  <title>RoboSmart Debate Club</title>
+  <!--
+    THE ROSE — the seal's centre mark, standing alone.
+
+    LOGOS.md instructs "below 72px do not shrink the seal: drop to the
+    centre mark alone (rose-min.svg in the symbol set)". There was no
+    symbol set and no such file, so that instruction could not be
+    followed. This is it, extracted from seal.svg rather than redrawn —
+    the paths are byte-identical to the group inside the seal, which is
+    what keeps the two marks from drifting apart. A test asserts it.
+
+    Square viewBox centred on the rose's own centre, NOT its raw bbox:
+    the vertical axis is longer than the other eleven spokes, so a tight
+    bbox would render the mark visibly off-centre in any square slot.
+
+    Ink is the only permitted difference from the -on-light twin.
+  -->
+<path d="M12 8.6 L12 -2.2" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M13.7 9.06 L17.4 2.65" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M14.94 10.3 L23.26 5.5" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M15.4 12 L20.6 12" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M14.94 13.7 L22.22 17.9" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M13.7 14.94 L15.9 18.75" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M12 15.4 L12 25.6" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M10.3 14.94 L7.2 20.31" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M9.06 13.7 L1.26 18.2" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M8.6 12 L3.8 12" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M9.06 10.3 L2.3 6.4" stroke="#10151A" stroke-width="1.9"></path>
+  <path d="M10.3 9.06 L6.9 3.17" stroke="#10151A" stroke-width="1.9"></path>
+  <circle cx="12" cy="12" r="1.5" fill="#10151A"></circle>
+</svg>

@@ -1,217 +1,115 @@
-# Deploying RoboSmart to Hugging Face Spaces
+# Deploying RoboSmart Debate Club
 
-Follow these in order. Steps 0–2 are on your machine; 3–5 need your Hugging Face
-account; 6–7 confirm it actually works.
+Target: **Streamlit Community Cloud**. Deploy is a `git push` — the platform pulls the
+repo, installs `requirements.txt`, and runs `app.py`.
 
-Times assume a normal connection. Total: about 25 minutes, most of it waiting for the
-first build.
+> **This file used to describe Hugging Face Spaces. That route is dead.** HF removed the
+> Streamlit SDK (`sdk` now accepts only `gradio|docker|static`) and put Docker Spaces
+> behind a PRO subscription. A working `Dockerfile` is still in the repo as a fallback,
+> but nothing uses it.
 
 ---
 
-## Step 0 — Rotate the Anthropic API key (do this first)
+## The one-time setup
 
-**Why first:** `.env` in this folder contains a live-looking key. This folder is not a
-git repo, so `~/Downloads/robosmart_FULL_project.zip` almost certainly contains that
-key in plaintext, and `README.md` currently claims no secrets are committed. Treat the
-current key as compromised.
+Already done for this repo, recorded so it can be rebuilt:
 
-1. Go to <https://console.anthropic.com/settings/keys>
-2. Find the key currently in your `.env` and click **Delete** (or Revoke).
-3. Click **Create Key**, name it something like `robosmart-hf-space`, and copy it.
-   You will not be able to view it again — paste it somewhere safe for Step 5.
-4. Update your local `.env` so you can still run the app locally:
+1. <https://share.streamlit.io> → **New app** → pick the GitHub repo, branch `main`,
+   main file `app.py`.
+2. **Advanced settings → Secrets**, in TOML:
 
-   ```bash
-   cd "/Users/schiffen/Downloads/robosmart 3"
-   # replace the ANTHROPIC_API_KEY line with the new key
-   open -e .env
+   ```toml
+   ANTHROPIC_API_KEY = "sk-ant-..."
    ```
 
-5. Delete the old zip so the dead key stops circulating:
-
-   ```bash
-   rm ~/Downloads/robosmart_FULL_project.zip
-   ```
-
-Do **not** skip this. Everything below assumes the key in `.env` is the new one.
+   Community Cloud exposes these through `st.secrets` and **does not set them as
+   environment variables**. `app.py::_adopt_streamlit_secrets()` bridges the gap. Without
+   it the deployed app finds no key and quietly serves **recorded** AI output while looking
+   completely healthy — the worst failure mode available, because nothing errors. Two tests
+   guard this.
 
 ---
 
-## Step 1 — Optional: slim the image and drop dev-only files
-
-Not required, but `statsmodels` is pinned and imported nowhere, and it drags in `scipy`:
-**151 MB of your Space image for zero functionality** (every regression in this project
-is hand-rolled in numpy). To remove it:
+## Every deploy after that
 
 ```bash
-cd "/Users/schiffen/Downloads/robosmart 3"
-grep -v '^statsmodels' requirements.txt > /tmp/req && mv /tmp/req requirements.txt
-.venv/bin/python -m pytest -q          # confirm still 38 passed
+git add -A            # NOT `commit -am` — see below
+git commit -m "..."
+git push
 ```
 
-Also consider excluding these from the Space — they are development artifacts, not part
-of the deliverable:
+Then wait ~2–5 minutes and reload the app URL.
 
-| File | Why |
-|---|---|
-| `_preview_app.py` | dev harness; assumes cwd is the repo root |
-| `data_layer_mock.py` | only used by two tests, never by the app |
-| `docs/summary_document_long.md` | the pre-trim draft, kept for reference |
-| `mock_context.json` | 377 KB, loaded by nothing at runtime |
+### Why `git add -A` and not `git commit -am`
 
-Keeping them does no harm beyond image size — your call.
+`-am` stages **modified tracked files only**. New files are invisible to it. `app.py`
+imports `about`, `brand` and `report`, and `brand` reads `logos/` — all of which were
+untracked when first written. A `commit -am` therefore pushes a modified `app.py` without
+the modules it imports, and the deploy dies on boot with:
 
----
+```
+ModuleNotFoundError: No module named 'about'
+```
 
-## Step 2 — Initialise git and prove no secrets are going up
+There is no warning locally, because locally the files exist. Verify what a deploy would
+actually receive:
 
 ```bash
-cd "/Users/schiffen/Downloads/robosmart 3"
-git init -b main
-git add -A
-
-# THE CRITICAL CHECK — .env must not appear in this list:
-git status --short | grep -E "\.env$|secrets" && echo "!! STOP: a secret is staged" || echo "OK: no secrets staged"
-
-# Second check — no key string anywhere in what you're about to commit:
-git diff --cached | grep -i "sk-ant-" && echo "!! STOP: key found in diff" || echo "OK: no key in diff"
-
-git commit -m "RoboSmart Investment — portfolio analysis app with AI debate and factor attribution"
-```
-
-If either check prints `!! STOP`, do not continue. `.gitignore` already lists `.env`,
-so this should pass — the checks exist because "should" is not "did."
-
----
-
-## Step 3 — Create the Space
-
-1. Go to <https://huggingface.co/new-space>
-2. Fill in:
-   - **Owner:** your username
-   - **Space name:** `robosmart-investment`
-   - **License:** MIT (or whatever your course requires)
-   - **SDK:** **Streamlit** ← must be Streamlit, not Gradio or Docker
-   - **Hardware:** **CPU basic (free)** — this app needs no GPU
-   - **Visibility:** **Public** (the assignment requires a public link)
-3. Click **Create Space**.
-
-You do **not** need to configure the Streamlit version in the UI — Hugging Face reads it
-from the YAML front-matter already at the top of `README.md`:
-
-```yaml
-sdk: streamlit
-sdk_version: 1.60.0
-app_file: app.py
+git status --short          # anything with ?? is NOT going to be deployed
 ```
 
 ---
 
-## Step 4 — Push the code
+## Dependencies, and the one that is deliberately optional
 
-Hugging Face no longer accepts your account password over git. Create a write token:
+`requirements.txt` is pinned and deliberately lean. Two notes:
 
-1. <https://huggingface.co/settings/tokens> → **Create new token** → type **Write** →
-   copy it.
+- **`reportlab` and `svglib`** are pure Python and produce the PDF export — the cover,
+  the tables, and the logos as embedded vectors. They install fine on Cloud.
+- **`kaleido`** renders Plotly charts into the PDF and is scoped
+  `platform_system != "Linux"`, so **Community Cloud does not install it**. It drives a
+  real headless Chrome, which the container does not have and should not be made to
+  download mid-demo.
 
-Then push (replace `YOUR_USERNAME`):
+  This is not a defect. `report.py` treats charts as an enhancement: without the engine
+  the export still produces a complete document and prints one line saying the charts
+  could not be rendered. Tests pin that path, and it was verified by simulating the
+  import failure. **To get charts in the PDF, generate it locally** — which is the machine
+  where a report's figures are worth producing anyway.
+
+---
+
+## Running it locally
 
 ```bash
-cd "/Users/schiffen/Downloads/robosmart 3"
-git remote add space https://huggingface.co/spaces/YOUR_USERNAME/robosmart-investment
-git push space main
+.venv/bin/streamlit run app.py        # → http://localhost:8501
 ```
 
-When prompted:
-- **Username:** your Hugging Face username
-- **Password:** paste the **write token** (not your account password)
+Live market data, and live Anthropic if `ANTHROPIC_API_KEY` is in `.env`. Use
+`.venv/bin/python` (3.12) — pandas 2.2.3 segfaults on the system 3.14.
 
-The Space will start building immediately. Watch the **Logs** tab. First build takes
-3–8 minutes while it installs pandas, numpy, plotly and yfinance.
-
----
-
-## Step 5 — Add the API key as a Space secret
-
-The two AI tabs need this. Without it the app still runs — it falls back to recorded
-demo output, banner-labelled in the UI — but a grader will not see a live debate.
-
-1. Open your Space → **Settings**
-2. Scroll to **Variables and secrets** → **New secret**
-3. **Name:** `ANTHROPIC_API_KEY` — exactly this, case-sensitive, no quotes, no spaces
-4. **Value:** the new key from Step 0
-5. **Save**, then **Settings → Factory rebuild** so the running container picks it up.
-
-> A secret added without a rebuild will not reach the process. If the debate tab still
-> shows the demo banner after saving, that is why.
+Run modes (`run_mode.py`): `USE_MOCK=1` for fully offline, `USE_MOCK_DATA=1` to freeze the
+market while iterating on prompts, `USE_MOCK_LLM=1` for the reverse.
 
 ---
 
-## Step 6 — Verify, and know the one real risk
+## Confirming a deploy actually worked
 
-Open your Space URL and check, in order:
+Reload the app and check, in order:
 
-- [ ] The dashboard loads with **real numbers**, not `N/A` (allow ~20s on first load —
-      it makes about 24 Yahoo requests for the 7-holding demo book)
-- [ ] The sidebar shows **"Active ticker (tabs 2 & 3)"** with a dropdown
-- [ ] **Bull vs Bear** → Start the Debate → arguments stream in with **no** demo-mode
-      banner (a banner means the secret isn't reaching the process — redo Step 5)
-- [ ] Switch the ticker to JNJ and run again — the debate should be about
-      Johnson & Johnson, not NVIDIA
-- [ ] **What Happened Today** → Explain → the cited headline mentions the company
-
-**The genuine risk: Yahoo Finance rate-limiting.** `yfinance` is an unauthenticated
-scraper, and Yahoo throttles datacenter IP ranges more aggressively than home
-connections. Your Space shares its IP with other Hugging Face workloads. Symptoms are
-`N/A` metrics or a "Ticker not found" error that does not reproduce locally.
-
-Mitigations, cheapest first:
-1. Reload. The 15-minute `st.cache_data` TTL means a successful load stays warm.
-2. Open the Space and let it warm up a few minutes *before* your demo or defence.
-3. **Set `USE_MOCK_DATA=1` as a Space variable.** The app then serves the recorded
-   snapshot in `market_data/fixtures/market_data.json` — real prices, real headlines,
-   zero Yahoo requests — while the AI tabs stay live. The sidebar states the snapshot
-   date, so nothing is passed off as live. Re-record before the demo with
-   `python -m market_data.refresh`.
-4. If it is throttled persistently, record the demo video locally, where it works
-   reliably. The assignment asks for a deployed link *and* a video — the video does not
-   have to be screen-recorded from the deployed instance.
-
-> Note: this is a *manual* switch. There is deliberately no automatic fallback — an app
-> that silently serves stale prices when the network hiccups is worse than one that
-> visibly degrades.
+1. **It boots at all** — a `ModuleNotFoundError` here is almost always the `add -A` trap.
+2. **The line under the title** reads *"Live market data · prices as of the close on …"*.
+   If it says **recorded snapshot**, the API key or the secrets bridge is not working —
+   the app is serving canned output and looking fine.
+3. **The tab icon and sidebar** show the seal.
+4. **Bull vs Bear** actually calls the model rather than replaying `mock_debate.json`.
+5. **Dashboard → Export → Generate PDF report** produces a file. On Cloud it will
+   correctly say charts are excluded; the tables and the debate must still be there.
 
 ---
 
-## Step 7 — Put the live URL in the README
+## Secrets hygiene
 
-`README.md` line 16 still has a placeholder. Replace it:
-
-```bash
-cd "/Users/schiffen/Downloads/robosmart 3"
-open -e README.md    # change: **Live app:** _<add your Hugging Face Space URL here>_
-                     # to:     **Live app:** https://huggingface.co/spaces/YOUR_USERNAME/robosmart-investment
-git add README.md && git commit -m "Add live Space URL" && git push space main
-```
-
-Then hand in:
-
-| Deliverable | Where it is |
-|---|---|
-| Summary PDF (≤5 pages) | `docs/summary_document.pdf` — rebuild with `./docs/build_pdf.sh` |
-| Public repo + README + requirements.txt | the Space repo itself satisfies this, or mirror to GitHub |
-| Live deployed app | your Space URL |
-| Demo video (3–5 min) | script in `docs/video_script.md` |
-| Student-app survey | the Google Form link in the assignment PDF (5% of the grade) |
-
----
-
-## If the build fails
-
-| Log message | Cause and fix |
-|---|---|
-| `sdk_version 1.60.0 is not available` | HF dropped that Streamlit build. Bump `sdk_version` in the README front-matter to a version HF lists, run `pytest` locally against it, and push. |
-| `ModuleNotFoundError: No module named 'X'` | `X` is missing from `requirements.txt`. Note `yfinance` and `anthropic` are imported lazily *inside* functions, so they will not surface until a tab is opened — both are already pinned. |
-| App loads but every metric is `N/A` | Yahoo throttling, not a code bug. See Step 6. |
-| Debate tab shows the demo-mode banner | The secret is missing or misnamed, or you skipped the factory rebuild. Redo Step 5. |
-| `Repository not found` on push | Wrong username in the remote URL, or you used your password instead of a write token. |
+`.env` is gitignored and must stay that way. `.env.example` documents the keys with no
+values. If a key has ever been pasted into a shared transcript or a zip, rotate it at
+<https://console.anthropic.com/settings/keys> before submission.

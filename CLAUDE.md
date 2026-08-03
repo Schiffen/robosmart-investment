@@ -1,8 +1,12 @@
-# CLAUDE.md — RoboSmart Investment
+# CLAUDE.md — RoboSmart Debate Club
 
-Streamlit app: upload a stock portfolio (CSV) and get three tools — a **Portfolio
-Dashboard**, a **Bull vs Bear** multi-agent LLM debate, and an **OLS factor-model**
-breakdown of a stock's daily move. Educational university project. Not investment advice.
+Streamlit app: upload a stock portfolio (CSV) and get four tools — a **Portfolio
+Dashboard**, a tool-using **analyst agent**, a **Bull vs Bear** multi-agent LLM debate, and
+an **OLS factor-model** breakdown of a stock's daily move — plus a branded **PDF export** of
+whatever the app currently knows. Educational university project. Not investment advice.
+
+*(Renamed from "RoboSmart Investment" on 2026-08-03 to match the shipped marks. The name
+lives in `brand.PRODUCT`; a test fails on any stale literal.)*
 
 > This file exists to override `~/Downloads/CLAUDE.md`, which describes a different
 > project entirely (a CX Email Triage Agent on the TS Agent SDK). Nothing in that file
@@ -38,7 +42,8 @@ No API key at all ⇒ recorded AI regardless of flags.
 ## Commands
 
 ```bash
-.venv/bin/python -m pytest                    # 133 tests, fully offline, ~5s
+.venv/bin/python -m pytest                    # 303 tests, fully offline, ~5s
+.venv/bin/python -m pytest --pdf              # + static chart export (needs Chrome)
 .venv/bin/python -m pytest --live             # + parity checks against real yfinance
 .venv/bin/python -m pytest --llm              # + groundedness vs the real model (spends credit)
 .venv/bin/python -m market_data.refresh       # re-record the offline fixture
@@ -48,6 +53,12 @@ No API key at all ⇒ recorded AI regardless of flags.
 The suite is **offline by default**: a network dependency must be declared with a
 `@pytest.mark.live` / `@pytest.mark.llm` marker, never acquired by accident. Two tests
 previously failed exactly because they reached Yahoo silently.
+
+> **Running without `USE_MOCK` does NOT give you a live test run.** `tests/conftest.py` has
+> an **autouse** fixture (`offline_by_default`) that sets `USE_MOCK_DATA=1` for every test
+> not marked `live`. `env -u USE_MOCK … pytest` therefore runs 100% on the fixture while
+> looking like a live run — it even finishes in the same ~4s, which is the only tell.
+> **`--live` is the only way to reach Yahoo.** This wasted a round trip; do not repeat it.
 
 ## Architecture
 
@@ -111,9 +122,10 @@ theme.py                shared design tokens
 
 ## Current state
 
-**199 tests passing offline** (~5s), plus 10 live-parity (`--live`) and 16
+**303 tests passing offline** (~5s), **308 with `--pdf`**, **321 with `--live`**, plus
 model-groundedness (`--llm`). Verified end to end in all three modes, locally and on the
-deployed app.
+deployed app — and, as of 2026-08-03, in a real browser at 1440px and at an emulated 390px
+phone, on **live market data** rather than only on the fixture.
 
 The **analyst agent** (4th view, "Ask the analyst") is built and verified against the live
 API: it picks the right tool per question, calls tools in parallel when they're
@@ -124,6 +136,167 @@ call in a "How I worked this out" panel — that trace is what makes the groundi
 rather than merely claimed. It is **open by default** as of 2026-08-01, with an
 always-visible strip naming which tools ran: collapsed, it was one click from invisible,
 and nobody opens an expander during a five-minute demo.
+
+### Design pass 3 — identity, chart interaction, mobile (2026-08-03)
+
+**The product is now `RoboSmart Debate Club`**, matching the shipped marks. The name lives
+in **`brand.PRODUCT`** and nowhere else; a test fails on any literal `"RoboSmart Investment"`
+in `app.py` / `about.py` / `brand.py`.
+
+**`logos/` + `brand.py`** — seal (masthead 44px, favicon, `st.logo`), mirror (ceremonial),
+and **`rose.svg`, newly extracted from the seal** because `LOGOS.md` instructed callers to
+use a `rose-min.svg` that never existed. Marks are inlined as base64 `data:` URIs, never
+file paths. A test pins the rose's paths to the seal's group so they cannot drift.
+
+`st.logo` previously used `assets/robosmart-mark.svg` while the masthead used the seal —
+**two different marks ~90px apart on screen**, which reads as an app that changed its mind,
+not as one identity. Only rendering it revealed that. Both are the seal now.
+
+#### The chart-zoom bug — deny-by-default in `style_fig`
+
+Plotly's cartesian default is `dragmode="zoom"` (box-zoom on drag). Nothing ever set it, and
+`CHART_CONFIG` suppresses the modebar that would normally **reset** it. So every cartesian
+chart zoomed in on drag with **no control anywhere on the page to get back out**. On touch it
+was worse: dragging is also how the page scrolls, so scrolling past a chart zoomed it and
+trapped you there.
+
+`style_fig(..., zoom=False)` is now the default. Four of five charts have no meaningful zoom
+(pie, correlation matrix, categorical bar, 4-bar waterfall) and are inert to drag; only a
+real time series opts in, and gets `dragmode="pan"` — reversible by the same gesture.
+`theme.range_control` / `range_bounds` provide `1M·3M·6M·YTD·1Y`, where **`1Y` is both the
+home view and the reset**, so reset is always visible rather than a hidden state.
+
+> **Streamlit PERSISTS Plotly pan/zoom across reruns.** Every relayout writes the whole
+> mutated figure into `WidgetStateManager.elementStates`, keyed on an element id Streamlit
+> hashes **from the figure spec**. Switching preset changes the spec → new id → remount →
+> pan discarded, so reset *appears* to work perfectly. But pan while already on `1Y` and
+> press `1Y`: spec is byte-identical, no remount, **the pan survives the button that exists
+> to undo it**. `theme.chart_key()` puts an epoch in `key=` to close this. Verified in a
+> live browser — panned to a window starting 5 months before the data, one tap restored the
+> exact declared range. Not `uirevision`: Streamlit never reads it; it only "works" by
+> perturbing the same spec hash.
+
+#### Mobile
+
+- **The sidebar squeezed rather than overlaid.** Measured at a real 390px: opening it left
+  `section.stMain` at **90px**, wrapping the title to one word per line. It is now
+  `position: fixed` below 767.98px.
+- **Streamlit already ships outside-tap-to-dismiss** (document-level `mousedown`, live below
+  767.98px). It works; it was simply invisible, because Streamlit draws no scrim. The scrim
+  here is a **`box-shadow: 0 0 0 100vmax`** — an overlay `<div>` would become the mousedown
+  target, and a box-shadow cannot take a pointer event at all, so the working handler stays
+  untouched by construction.
+- Verified at 390px: router wraps to 2 rows, range control fits one row, headline does not
+  clip, page never scrolls horizontally, `.rs-table-wrap` scrolls inside its own container.
+
+> **Clear `localStorage` before judging mobile.** `stSidebarCollapsed-<hash>` persists, and a
+> stale `false` made the app look like it opens with the sidebar covering the screen and the
+> headline clipped. That was self-inflicted, not a defect. Also: `resize_page` alone leaves
+> Streamlit's internal width state stale — **emulate a device and reload**, or you will
+> measure desktop behaviour and believe it is mobile.
+
+#### Sector comparison, and the collapse that guards it
+
+New in *What Happened Today*: the stock, its sector ETF and SPY, rebased to 100 — the
+waterfall's three components over a year instead of a day. No new plumbing; `sector_etf` and
+`get_benchmark_history` already existed.
+
+> `live.py:285` is `SECTOR_ETF.get(sector, "SPY")`, so **anything yfinance cannot classify
+> resolves to SPY itself** — six of eighteen recorded tickers, i.e. every fund, and
+> `diversified_global` is mostly funds. A naive three-line chart plots **SPY twice**, one
+> line labelled "its sector". `attrib._sector_etf()` returns None there and the chart
+> collapses to two honest lines with a caption saying why. *A fixture-only reading of the
+> data would not have surfaced this; it took looking at live behaviour.*
+
+#### About dialog (`about.py`)
+
+`st.dialog` from the sidebar, not a fifth router pill (the router already wraps to 2 rows at
+390px). Three non-obvious constraints, all verified:
+
+1. **A dialog does not survive a rerun** — it exists only for the run that calls it, and this
+   app reruns on every sidebar touch. Gate on `session_state` and re-assert each run.
+2. **`on_dismiss` defaults to `"ignore"`**, closing client-side with *no* rerun — so the flag
+   stays set and the dialog reappears, reading as a modal that will not stay shut. Pass a
+   callback that clears it.
+3. **It renders in a portal, outside `section.stMain`**, so none of this app's CSS reaches
+   it. Build dialog content from native widgets, which pick up `config.toml` globally.
+
+#### Also fixed
+
+- `page_icon="assets/…"` resolves against the **process CWD**, not `app.py`, and
+  `page_config` swallows the failure in a bare `except` — yielding a silent 404 favicon with
+  no exception, no warning, no log line. Absolute paths now. Proven from `cwd=/tmp`.
+- `LOGOS.md`'s contrast table measured `#0B0E11`/`#141A20`/`#1C242C` — **surfaces this app
+  does not have**. Rewritten against `PAGE`/`SURFACE`/composite, every ratio recomputed here
+  rather than taken on trust. It also mis-stated WCAG: SC 1.4.11 **exempts logotypes**, so
+  the 3:1 is a house rule, not a conformance obligation.
+- `LOGOS.md`'s "only the ink may differ between twins" is **false for the mirror**, which
+  also namespaces its gradient/mask ids (`mgd`/`mmd` vs `mgl`/`mml`). It must: both files are
+  inlined into one document, and identical ids would collide so one reflection mask would
+  win for both. A test caught this the moment it was written.
+- `test_model_output_safety` asserted no `<img` anywhere, as a proxy for "no model-authored
+  tag survived". The masthead legitimately emits one. The sweep now strips **only** `<img>`
+  whose src is an inline SVG data URI — a shape `<img src=x onerror=…>` cannot reach — so
+  the guard keeps full strength rather than being widened to pass.
+
+#### PDF export (`report.py`) — and why kaleido is optional
+
+"Download PDF" on the Dashboard. **reportlab + svglib** (both pure Python) produce the
+document: seal cover, holdings table, cash reconciliation, marks embedded as **vectors**,
+and a per-page footer carrying the disclaimer — a page separated from the rest still says
+what it is. **kaleido** adds the charts and is deliberately **optional**:
+
+- **0.2.1 ships no macOS arm64 binary.** Installs cleanly, then fails at render with
+  `./bin/kaleido: No such file or directory`.
+- **1.x is incompatible with Plotly 5.24's `fig.to_image()`** — it warns and refuses. Its
+  own `calc_fig_sync()` *does* work with a 5.x figure; that is the route `report.py` takes.
+- **1.x drives a real Chrome**, which Community Cloud does not have.
+
+So the report is generated from pure Python and **charts are an enhancement**. Without the
+engine it prints a complete document plus one line saying the charts could not be rendered
+— silently dropping half the content is worse than admitting it. Tests pin that path
+offline; the ones needing Chrome carry `@pytest.mark.pdf` (they took the suite 4.3s → 14.2s,
+so Chrome is now a declared dependency like `--live`).
+
+> **The cover uses the SEAL, not the mirror**, against LOGOS.md's placement table — on
+> LOGOS.md's own rule. svglib renders paths but **drops `<mask>`**, so the mirror's
+> reflection comes out as solid ink: the wordmark upside-down beneath itself, which reads
+> as a printing fault. LOGOS.md says use the seal when reproduction is lossy. It is.
+
+> **A pandas `Timestamp` in `layout.xaxis.range` makes a figure unexportable.** The range
+> control set it that way; the browser was fine because Streamlit's serialiser handles
+> Timestamps, but kaleido's raises `Type is not JSON serializable: Timestamp` and the
+> performance chart **silently vanished from the PDF while looking perfect on screen**. Both
+> `_apply_window`s now emit `.isoformat()` strings. Do not "simplify" that back.
+>
+> Note the obvious test for this is the wrong one: a blanket "is the figure JSON
+> serialisable" check fails on **all five** charts, because plotly figures legitimately
+> carry object-dtype ndarrays that the real export path cleans through plotly's encoder
+> first. Assert the layout values are primitives, and separately do a real export.
+
+**The report carries the ANALYSIS, not just the tables.** This was a deliberate correction:
+the first version exported holdings and two charts, which is what a spreadsheet does. The
+export exists so a user can **save it, send it, and show it to someone who was never in
+front of the app** — and on that framing the shareable content is the Bull vs Bear debate
+(both cases, strengths, the judge's verdict, confidence, the weakest claim on *each* side,
+and the falsifiers) plus the day's factor decomposition. Both are optional; the report
+covers whatever the app currently knows. The Dashboard states, before you press Generate,
+whether a debate will be included — while you can still go and run one.
+
+> **`report.pdf_safe()` is `theme.safe` for a new medium**, and invariant #10 now has two
+> boundaries, not one. reportlab's `Paragraph` parses a small HTML dialect, so a verdict
+> containing `P/E < 20 & falling` **raises and kills the export**, and one containing
+> `<font color=white>` would be *obeyed*. Do not reuse `theme.safe` here — it emits `&#36;`
+> for `$`, correct for Streamlit's LaTeX parser and wrong for reportlab, which has none and
+> would print the entity. A hostile-debate test mirrors `test_model_output_safety.py`.
+
+> Model text is flowed through a `Frame`, never `drawString`: model output has no length
+> contract and `drawString` neither wraps nor paginates. A test proves content that cannot
+> fit opens another page — and finding that test failing is what exposed that the report was
+> **silently truncating** claims/falsifiers/explanations to the first 3–4. Those caps are
+> gone; an artifact people send onward must not quietly drop analysis.
+
+**303 offline · 308 with `--pdf` · 321 with `--live`** (was 199/209).
 
 ### Design pass 2 — surfaces and composition (2026-08-01)
 

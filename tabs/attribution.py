@@ -100,6 +100,97 @@ def _waterfall(market: float, sector: float, idio: float, total: float,
 # Explanation rendering (cards / no-cause panel)
 # --------------------------------------------------------------------------
 
+def _rebase(series) -> "np.ndarray":
+    """Index a price series to 100 at its first finite value."""
+    values = series.to_numpy(dtype=float)
+    finite = values[np.isfinite(values)]
+    if finite.size == 0 or finite[0] == 0:
+        return np.full(values.shape, np.nan)
+    return values / finite[0] * 100.0
+
+
+def _comparison(frame, ticker: str, etf: str | None, preset: str) -> go.Figure:
+    """The stock against its sector and against the market, all rebased to 100.
+
+    Same three components as the waterfall directly above it — market, sector,
+    the stock itself — but over a year rather than a day, which is what turns
+    "today was mostly sector" from an assertion into something a reader can see
+    the shape of. It uses data_layer.get_benchmark_history for both benchmarks,
+    the same single source the Dashboard and the factor model use, so the two
+    views cannot disagree about what SPY did (INTEGRATION_CONTRACT §3).
+
+    `etf` is None when there is no distinct sector to draw — see _sector_etf.
+    """
+    fig = go.Figure()
+    cols = ["stock"]
+    fig.add_trace(go.Scatter(
+        x=frame.index, y=frame["stock"], name=ticker, mode="lines",
+        line=dict(color=_BLUE, width=2.5),
+        hovertemplate="%{x|%b %d}<br>" + ticker + " %{y:.1f}<extra></extra>"))
+    if etf:
+        cols.append("sector")
+        fig.add_trace(go.Scatter(
+            x=frame.index, y=frame["sector"], name=f"{etf} (its sector)",
+            mode="lines", line=dict(color=theme.CATEGORICAL[2], width=2),
+            hovertemplate="%{x|%b %d}<br>" + etf + " %{y:.1f}<extra></extra>"))
+    cols.append("market")
+    fig.add_trace(go.Scatter(
+        x=frame.index, y=frame["market"], name="SPY (the market)", mode="lines",
+        line=dict(color=theme.MUTED, width=2, dash="dash"),
+        hovertemplate="%{x|%b %d}<br>SPY %{y:.1f}<extra></extra>"))
+    fig.update_layout(legend=dict(orientation="h", y=1.12, x=0),
+                      xaxis_title="Date", yaxis_title="Index (start = 100)")
+    _apply_window(fig, frame, preset, cols=cols)
+    return theme.style_fig(fig, height=360, zoom=True)
+
+
+def _apply_window(fig: go.Figure, frame, preset: str, *, cols) -> None:
+    """Declared x/y ranges for `preset`. Mirrors tabs.dashboard._apply_window —
+    both call theme.range_bounds, so the two series charts in the app window
+    identically and "1Y" means the same thing on each."""
+    bounds = theme.range_bounds(frame.index, preset)
+    if bounds is None:
+        return
+    lo, hi = bounds
+    # ISO strings, not Timestamps — see tabs/dashboard.py::_apply_window. A
+    # Timestamp here makes the figure unserialisable and it drops silently out
+    # of the PDF export while rendering perfectly in the browser.
+    fig.update_xaxes(range=[lo.isoformat(), hi.isoformat()])
+    visible = frame.loc[(frame.index >= lo) & (frame.index <= hi), list(cols)]
+    values = visible.to_numpy(dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return
+    top, bottom = float(values.max()), float(values.min())
+    pad = max((top - bottom) * 0.06, 0.5)
+    fig.update_yaxes(range=[bottom - pad, top + pad])
+
+
+def _sector_etf(context: dict) -> str | None:
+    """The ticker's sector ETF, or None when there is no DISTINCT one.
+
+    THIS FUNCTION IS THE WHOLE POINT OF THE DEGENERATE CASE, so it is worth
+    saying plainly what it guards. market_data/live.py resolves the sector ETF
+    as `SECTOR_ETF.get(sector, "SPY")` — every ticker yfinance cannot classify
+    falls back to SPY itself. That is not a rare edge: measured against the
+    recorded fixture, SIX of eighteen tickers hit it (BND, GLD, TLT, VNQ, VTI,
+    VXUS — i.e. every fund), and the diversified_global book is mostly funds.
+
+    Drawing "stock vs sector vs market" for those would plot SPY twice: two
+    identical lines, one labelled "its sector", silently asserting that GLD's
+    sector is the S&P 500. Returning None instead collapses the chart to two
+    honest lines, and the caller says why in the caption.
+
+    Verified live as well as offline: GLD and SPY both come back with
+    benchmarks == {SPY, VIX} and no separate sector key, so the collapse is
+    already visible in Contract B rather than being inferred from the symbol.
+    """
+    etf = context.get("sector_etf")
+    if not etf or str(etf).upper() == "SPY":
+        return None
+    return str(etf).upper()
+
+
 def _safe_link(url: str) -> str | None:
     """Return the URL only if it is a plain http(s) link.
 
@@ -193,6 +284,48 @@ def _render_explanation(result: dict) -> None:
         st.caption(f":material/warning: {theme.safe_md(caveat)}")
 
 
+def _render_comparison(context: dict, ticker: str) -> None:
+    """Draw the year-wide stock / sector / market comparison."""
+    import pandas as pd
+
+    import data_layer
+
+    history = context.get("history")
+    if history is None or len(history) == 0:
+        return
+    etf = _sector_etf(context)
+
+    frame = pd.DataFrame(index=history.index)
+    frame["stock"] = _rebase(history["Close"])
+    spy = data_layer.get_benchmark_history("SPY")
+    frame["market"] = _rebase(spy["Close"].reindex(history.index).ffill())
+    if etf:
+        sector = data_layer.get_benchmark_history(etf)
+        frame["sector"] = _rebase(sector["Close"].reindex(history.index).ffill())
+    frame = frame.dropna(how="all")
+    if frame.empty:
+        return
+
+    theme.section("How it compares to its sector and the market")
+    preset = theme.range_control(f"cmp_{ticker}")
+    st.plotly_chart(_comparison(frame, ticker, etf, preset), width="stretch",
+                    config=theme.CHART_CONFIG,
+                    key=theme.chart_key(f"cmp_{ticker}", preset))
+
+    if etf:
+        st.caption(f"All three rebased to 100 one year ago, so the lines are "
+                   f"comparable regardless of share price. **{etf}** is the "
+                   f"sector ETF for {theme.safe_md(str(context.get('sector')))}; "
+                   f"**SPY** is the market.")
+    else:
+        # Never draw SPY twice. See _sector_etf — this is a third of the
+        # recorded book, not a rare edge.
+        st.caption(f"**{ticker}** has no sector classification, so it is shown "
+                   f"against the market alone rather than against a sector ETF "
+                   f"that would just be SPY a second time. Both rebased to 100 "
+                   f"one year ago.")
+
+
 # --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
@@ -267,6 +400,16 @@ def render(context: dict) -> None:
     else:
         st.info("📉 Not enough overlapping price history to break this move into "
                 "market, sector, and company-specific parts.")
+
+    # ---- (2b) The same three parts, over a year ---------------------------
+    # Placed immediately under the waterfall on purpose: the waterfall splits
+    # ONE DAY into market / sector / company, and a reader's next question is
+    # whether that day was typical. Same three things, same order, same
+    # benchmark source — just a year wide instead of a day.
+    try:
+        _render_comparison(context, ticker)
+    except Exception as e:  # noqa: BLE001 — a bonus chart never breaks the tab
+        st.caption(f"Sector comparison unavailable: {e}")
 
     # ---- (3) Interpretation + model detail --------------------------------
     interpretation = decomposition.get("interpretation")

@@ -20,6 +20,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 import portfolio_metrics as pm
+import run_mode
 import theme
 # Shared design system — one source of truth for colours/formatting across all
 # three tabs. (Aliased to the local names this module already uses.)
@@ -121,7 +122,21 @@ def _contribution_bar(contrib: pd.DataFrame, sym: str = "$") -> go.Figure:
     return _style_fig(fig, height=max(220, 46 * len(d) + 90))
 
 
-def _perf_line(perf: pd.DataFrame) -> go.Figure:
+def _perf_line(perf: pd.DataFrame, preset: str = theme.RANGE_HOME) -> go.Figure:
+    """Portfolio vs SPY, indexed to 100.
+
+    The one chart on the Dashboard where a time window is a real question, so
+    the only one that opts into `zoom=True` (see theme.style_fig). Everything
+    else takes the deny-by-default and is inert to drag.
+
+    BOTH axes get an explicit range. The x range is the declared home view that
+    the "1Y" preset restores exactly; the y range is recomputed FROM THE
+    VISIBLE WINDOW, which is the part that makes narrowing the range useful
+    rather than decorative. Left to autorange on y, a 1M view of a series that
+    spent the year between 88 and 140 renders as a near-flat line inside a tall
+    empty box — the reader zooms in and sees less, which is the opposite of
+    what they asked for.
+    """
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=perf.index, y=perf["Portfolio"], name="Your portfolio",
@@ -137,7 +152,44 @@ def _perf_line(perf: pd.DataFrame) -> go.Figure:
         legend=dict(orientation="h", y=1.12, x=0),
         xaxis_title="Date", yaxis_title="Index (start = 100)",
     )
-    return _style_fig(fig, height=360)
+    _apply_window(fig, perf, preset, cols=("Portfolio", "SPY"))
+    return _style_fig(fig, height=360, zoom=True)
+
+
+def _apply_window(fig: go.Figure, frame: pd.DataFrame, preset: str,
+                  *, cols) -> None:
+    """Set the declared x/y ranges on a series figure for `preset`.
+
+    Shared by the Dashboard's performance line and Attribution's sector
+    comparison so the two cannot drift into windowing differently — the same
+    reasoning as the single benchmark source in INTEGRATION_CONTRACT §3.
+
+    Silent no-op on anything unresolvable. A range chart that cannot compute
+    its window should render at Plotly's autorange, which is merely
+    unremarkable; raising here would take out a whole tab over a cosmetic.
+    """
+    bounds = theme.range_bounds(frame.index, preset)
+    if bounds is None:
+        return
+    lo, hi = bounds
+    # ISO STRINGS, not Timestamps. Plotly accepts either and the browser renders
+    # both identically — but a pandas Timestamp left in layout.xaxis.range makes
+    # the figure UNSERIALISABLE: kaleido's orjson raises "Type is not JSON
+    # serializable: Timestamp", so the chart silently vanishes from the PDF
+    # export while looking perfect on screen. Streamlit's own serialiser handles
+    # Timestamps, which is exactly why this hides.
+    fig.update_xaxes(range=[lo.isoformat(), hi.isoformat()])
+
+    visible = frame.loc[(frame.index >= lo) & (frame.index <= hi), list(cols)]
+    values = visible.to_numpy(dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return
+    top, bottom = float(values.max()), float(values.min())
+    # 6% of span as breathing room, with a floor so a genuinely flat window
+    # does not collapse to a zero-height axis and divide by nothing.
+    pad = max((top - bottom) * 0.06, 0.5)
+    fig.update_yaxes(range=[bottom - pad, top + pad])
 
 
 # --------------------------------------------------------------------------
@@ -581,8 +633,18 @@ def render(portfolio: dict) -> None:
         perf = pm.performance_vs_benchmark(contexts, weights, spy_history)
         if perf is not None and not perf.empty:
             theme.section("How this book would have performed")
-            st.plotly_chart(_perf_line(perf), width="stretch",
-                            config=theme.CHART_CONFIG)
+            # The control sits ABOVE the chart it governs. Below, it reads as a
+            # footnote to the figure; above, it reads as the figure's own
+            # heading furniture — and on a phone, where the chart is 360px
+            # tall, a control underneath it is off-screen at the moment the
+            # reader is looking at the thing it controls.
+            _preset = theme.range_control("perf")
+            # key= is load-bearing, not decoration. Streamlit persists plotly
+            # pan/zoom across reruns; without an epoch in this key, pressing
+            # the active preset again cannot clear a pan. See theme.chart_key.
+            st.plotly_chart(_perf_line(perf, _preset), width="stretch",
+                            config=theme.CHART_CONFIG,
+                            key=theme.chart_key("perf", _preset))
             st.caption("Hypothetical: today's holdings held at constant weights "
                        "(daily-rebalanced) over the past year — a backtest of your "
                        "current book, not a realized track record. Ignores trades, "
@@ -595,3 +657,79 @@ def render(portfolio: dict) -> None:
 
     st.caption("Weights are computed on invested equity (cash excluded). "
                "Not investment advice.")
+
+    _render_export(portfolio, df, sector_df, sym)
+
+
+def _render_export(portfolio, df, sector_df, sym) -> None:
+    """The branded PDF export.
+
+    TWO STEPS ON PURPOSE — generate, then download. st.download_button needs
+    its bytes UP FRONT, so wiring the report straight into one would rebuild
+    the whole PDF on every rerun of this view: four Chrome-rendered charts,
+    about seven seconds, every time the user touched the sidebar. The button
+    would be a permanent tax for a feature most readers never press.
+
+    So the first click generates and parks the bytes in session_state; the
+    download button appears only once there is something to download.
+    """
+    import report
+
+    st.divider()
+    state = report.availability()
+    if not state["pdf"]:
+        return                      # no engine at all: offer nothing
+
+    theme.section("Export")
+    key = "pdf_bytes"
+
+    # What the report WILL contain, said before it is generated. The debate is
+    # the part worth sending to someone, and it is only in the document if the
+    # reader has actually run one — so tell them that while they can still go
+    # and do it, rather than after they have opened a PDF that lacks it.
+    ticker = st.session_state.get("active_ticker")
+    debate = (st.session_state.get("debate_results") or {}).get(ticker)
+    carries = ["your holdings", "the charts above"]
+    if debate:
+        carries.append(f"the **{ticker}** Bull vs Bear debate and verdict")
+    st.caption("The report will include " + ", ".join(carries) + "."
+               + ("" if debate else
+                  "  Run a Bull vs Bear debate first and it will be included too."))
+
+    if st.button(":material/picture_as_pdf: Generate PDF report",
+                 help="A branded report you can save, print or send on."):
+        with st.spinner("Rendering the report…"):
+            try:
+                figures = []
+                try:
+                    figures.append(("Where your money is",
+                                    _donut(sector_df, sym)))
+                    contrib = pm.day_move_contributions(
+                        df, portfolio.get("cash", 0.0))
+                    figures.append(("Today's contributors",
+                                    _contribution_bar(contrib, sym)))
+                except Exception:  # noqa: BLE001 — charts are a bonus
+                    pass
+                st.session_state[key] = report.build(
+                    portfolio=portfolio, positions=df, sector_df=sector_df,
+                    figures=figures, currency=sym,
+                    debate=dict(debate, ticker=ticker) if debate else None,
+                    profile_label=st.session_state.get("loaded_profile"),
+                    data_source=("live market data"
+                                 if run_mode.describe()["data"] == "live"
+                                 else "recorded snapshot"))
+            except Exception as e:  # noqa: BLE001 — never take the tab down
+                st.session_state.pop(key, None)
+                st.error(f"Couldn't build the report: {e}")
+
+    if st.session_state.get(key):
+        st.download_button(
+            ":material/download: Download the report",
+            st.session_state[key], file_name="robosmart-report.pdf",
+            mime="application/pdf", type="primary")
+
+    if not state["charts"]:
+        # Said out loud rather than silently shipping a chartless report. The
+        # static-image engine drives real Chrome, which a hosted container
+        # generally does not have — the tables and figures are unaffected.
+        st.caption(theme.safe_md(state["why"]))

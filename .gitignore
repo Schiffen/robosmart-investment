@@ -14,6 +14,16 @@ venv/
 *.log
 preview_*.png
 st*.log
+.DS_Store
+
+# Design scratch — the SOURCE of the identity, not the identity itself.
+# logos/*.svg and logos/LOGOS.md ARE tracked: they are the shipped assets and
+# their contract. What is excluded is the exploration that produced them —
+# candidate boards, a Gemini render, a zip of options. Roughly 900KB of dead
+# weight in a repo that is cloned on every Community Cloud deploy, and none of
+# it is reachable from the running app.
+assets/candidates/
+*.zip
 
 # Impeccable design-tool scratch (screenshots of a superseded design)
 .impeccable-critique-shots/
