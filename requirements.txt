@@ -6,7 +6,7 @@ plotly==5.24.1
 anthropic==0.118.0
 python-dotenv==1.0.1
 
-# --- PDF export (report.py, report_charts.py) -----------------------------
+# --- PDF export (reporting/document.py, reporting/charts.py) --------------
 # All three install everywhere, so the export is NOT conditional on the
 # environment. reportlab and svglib build the document and embed the marks as
 # vectors; matplotlib draws the figures.
@@ -17,7 +17,7 @@ python-dotenv==1.0.1
 # that Streamlit Community Cloud does not have. That last one left the DEPLOYED
 # export with tables and no charts, which is not an export. matplotlib needs no
 # browser, ships manylinux wheels, and renders all five figures in ~0.5s
-# against kaleido's ~7s. See report_charts.py.
+# against kaleido's ~7s. See reporting/charts.py.
 matplotlib>=3.8
 reportlab>=4.0
 svglib>=1.5
