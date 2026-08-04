@@ -25,6 +25,7 @@ Returns Contract A (`portfolio.py`), unchanged: {positions, cash, currency}.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 
@@ -65,12 +66,20 @@ def list_profiles() -> list:
 
 
 def load_portfolio(profile_id: str) -> dict:
-    """Contract A for one profile."""
+    """Contract A for one profile — a DEEP COPY, never the parsed document.
+
+    This used to hand back a live reference into the freshly-parsed file. That
+    was survivable while a loaded portfolio was read-only, but cash is now
+    editable from the sidebar and the builder can start from a sample book, so
+    a caller writing to `st.session_state.portfolio` would be writing into the
+    profile itself and every later read in that run would see the mutation.
+    `market_data.fixture.get_context` copies for exactly this reason.
+    """
     doc = _read(profile_id)
     portfolio = doc.get("portfolio")
     if not isinstance(portfolio, dict) or not portfolio.get("positions"):
         raise ProfileNotFound(f"Profile {profile_id!r} has no positions")
-    return portfolio
+    return copy.deepcopy(portfolio)
 
 
 def label(profile: dict) -> str:
