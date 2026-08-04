@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import streamlit as st
 
 import about
+import book_source
 import brand
 import data_layer
 from reporting import panel as export
@@ -97,23 +98,51 @@ ss = st.session_state
 ss.setdefault("portfolio", None)
 ss.setdefault("active_ticker", None)
 ss.setdefault("view", "Dashboard")
+ss.setdefault("portfolio_source", None)
 
 
-def _load(portfolio: dict, *, profile_id: str | None = None) -> None:
+def _profile_source(profile_id: str) -> dict:
+    """book_source record for a shipped sample, carrying its checked `expect`."""
+    meta = next((p for p in profiles.list_profiles() if p["id"] == profile_id), None)
+    return book_source.profile(
+        profile_id,
+        label=profiles.label(meta) if meta else profile_id,
+        expect=(meta or {}).get("expect"))
+
+
+def _load(portfolio: dict, *, source: dict) -> None:
+    """The ONE way a portfolio enters session state.
+
+    `source` is required rather than defaulted, so a new producer cannot forget
+    to say what it is. Everything downstream — the identity banner, the sidebar,
+    the export panel, the PDF cover and its filename — reads that one record.
+
+    The cash widget's key is cleared here for the same reason `active_ticker` is
+    reset: Streamlit lets a surviving widget key win over the `value=` argument,
+    so without this, switching books would leave the previous book's cash in the
+    input and then write it straight back into the new one.
+    """
     ss.portfolio = portfolio
     tickers = [p["ticker"] for p in portfolio.get("positions", [])]
     ss.active_ticker = tickers[0] if tickers else None
-    ss.loaded_profile = profile_id          # None means "user's own CSV"
+    ss.portfolio_source = source
+    ss.pop("cash_input", None)
+    # A questionnaire summary belongs to the book it drafted. Cleared here so it
+    # cannot follow the next book into the export and explain a portfolio that
+    # is no longer on screen; the builder re-sets it immediately after the
+    # commit for a book it actually drafted.
+    ss.pop("portfolio_profile", None)
 
 
 # Land on a populated dashboard rather than an empty one. The deployed app used
 # to open on an upload prompt and an empty tab — a poor first five seconds for a
 # tool whose whole point is what it computes.
 if ss.portfolio is None:
-    _load(profiles.load_portfolio(DEFAULT_PROFILE), profile_id=DEFAULT_PROFILE)
+    _load(profiles.load_portfolio(DEFAULT_PROFILE),
+          source=_profile_source(DEFAULT_PROFILE))
 
 
-def _as_of(context: dict | None) -> str | None:
+def _as_of() -> str | None:
     """The date of the last SETTLED close actually being shown.
 
     Everything in this app is close-to-close (INTEGRATION_CONTRACT §3), so on a
@@ -122,14 +151,21 @@ def _as_of(context: dict | None) -> str | None:
     live, so the DEPLOYED app — the only one a grader sees — carried no
     freshness signal whatsoever. Principle 4 says recorded data must never look
     live; the same reasoning says stale data must never look fresh.
+
+    SOURCED FROM THE BENCHMARK, NOT FROM THE SELECTED STOCK. This used to read
+    `context["history"]`, which had two problems. The caption's date moved when
+    you changed stock — wrong, because every figure in this app is close-to-close
+    against ONE SPY series (§3 and §4), so freshness is a property of the data
+    source rather than of whichever holding is selected. And it needed a context
+    to exist at all, which is no longer true on the two views that do not select
+    a stock. `get_benchmark_history` is the single benchmark source and is
+    cached, so this costs nothing and cannot disagree with the charts.
     """
-    if not context:
-        return None
-    history = context.get("history")
     try:
+        history = data_layer.get_benchmark_history("SPY")
         if history is not None and len(history) > 0:
             return history.index[-1].strftime("%-d %b %Y")
-    except Exception:  # noqa: BLE001 — a missing index never blocks the page
+    except Exception:  # noqa: BLE001 — a missing benchmark never blocks the page
         return None
     return None
 
@@ -176,20 +212,36 @@ with st.sidebar:
     )
     if picked != ss.last_profile_pick:
         ss.last_profile_pick = picked
-        _load(profiles.load_portfolio(picked), profile_id=picked)
+        _load(profiles.load_portfolio(picked), source=_profile_source(picked))
         st.rerun()
 
-    if ss.get("loaded_profile") is None and ss.portfolio:
-        st.caption(":material/description: Showing **your uploaded portfolio**. Pick a book above to "
-                   "switch back to a sample.")
+    if ss.portfolio and book_source.is_users_own(ss.portfolio_source):
+        # "Showing: **<label>**", not "Showing **<label.lower()>**". Lowercasing
+        # reads fine for "your uploaded portfolio" and produced "Showing drafted
+        # from your investor profile" for a generated book — a sentence with no
+        # subject. The colon lets each label keep its own capitalisation.
+        st.caption(f":material/description: Showing: "
+                   f"**{book_source.label_of(ss.portfolio_source)}**. "
+                   f"Pick a book above to switch back to a sample.")
 
     with st.expander("Or upload your own CSV"):
-        st.caption("Three columns, one row per holding. `sector` is optional; a "
-                   "`CASH` row sets your cash balance.")
-        st.code("ticker,shares,cost_basis\nAAPL,10,150.00\nMSFT,5,310.50\nCASH,1,5000",
+        # The CASH row reads its amount from the SHARES column, which is
+        # unobvious enough that this example used to say `CASH,1,5000` — i.e.
+        # one dollar — while the template offered for download correctly said
+        # `CASH,5000,0`. A user who copied what the app displayed lost their
+        # cash balance with no error. tests/test_portfolio.py now parses this
+        # very literal out of the source and asserts it means $5,000.
+        st.caption("Three columns, one row per holding. `sector` is optional. A "
+                   "`CASH` row sets your cash balance — the amount goes in the "
+                   "**shares** column.")
+        st.code("ticker,shares,cost_basis\nAAPL,10,150.00\nMSFT,5,310.50\nCASH,5000,0",
                 language="csv")
         try:
-            with open("sample_portfolio.csv", "rb") as fh:
+            # Absolute, for the reason page_icon is: a relative path resolves
+            # against the PROCESS working directory, not against app.py, and the
+            # `except OSError: pass` below would then silently drop the download
+            # button with no error anywhere.
+            with open(Path(__file__).parent / "sample_portfolio.csv", "rb") as fh:
                 st.download_button("Download a template", fh.read(),
                                    file_name="robosmart_template.csv",
                                    mime="text/csv", use_container_width=True)
@@ -199,35 +251,71 @@ with st.sidebar:
                               label_visibility="collapsed")
         if up is not None:
             try:
-                _load(parse_portfolio(up), profile_id=None)
+                _load(parse_portfolio(up),
+                      source=book_source.upload(getattr(up, "name", None)))
                 st.success("Portfolio loaded.")
             except PortfolioError as e:
                 st.error(str(e))
 
+    # Third way in, beside the other two. Opens a full-page takeover rather
+    # than a dialog — see tabs/build.py on why.
+    try:
+        from tabs import build as builder
+        builder.open_button()
+    except Exception as e:  # noqa: BLE001 — a missing builder is not an outage
+        st.caption(f"Builder unavailable: {e}")
+
     if ss.portfolio:
         st.divider()
         positions = ss.portfolio.get("positions", [])
-        st.write(f"**{len(positions)} holdings** · cash "
-                 f"${ss.portfolio.get('cash', 0):,.0f}")
-        tickers = [p["ticker"] for p in positions]
-        if tickers:
-            idx = tickers.index(ss.active_ticker) if ss.active_ticker in tickers else 0
-            ss.active_ticker = st.selectbox(
-                "Stock to analyse", tickers, index=idx,
-                help="Bull vs Bear and What Happened Today both analyse this stock.")
+        st.write(f"**{len(positions)} holdings**")
+
+        # ---- Cash, editable ------------------------------------------------
+        # Cash used to be printed and never changeable: it arrived from a CASH
+        # row or a profile JSON and that was that. But cash is not a property of
+        # your holdings — it is a fact about your life, and it moves. It was the
+        # one number in the book the app fixed at load time for no reason.
+        #
+        # The sidebar is right for THIS control even though the stock selector
+        # was just moved out of it, and the distinction is frequency: you switch
+        # stock constantly while analysing, and you change your cash balance
+        # when something happens. Rare, global, and already where cash was
+        # reported.
+        #
+        # Editing it does NOT detach a sample book from its identity. Weights
+        # here are equity-based with cash excluded (portfolio_metrics, finance
+        # assumption 1) — measured, cash 5,000 -> 500,000 moves no weight at all
+        # — so every `expect` claim a profile makes still holds afterwards.
+        _cash_now = float(ss.portfolio.get("cash", 0.0) or 0.0)
+        _cash_new = st.number_input(
+            "Cash", min_value=0.0, value=_cash_now, step=100.0, format="%.2f",
+            key="cash_input",
+            help="Uninvested cash. Counted in your total value, and deliberately "
+                 "NOT counted in any weight, sector split or beta — those are "
+                 "equity-risk figures and idle cash would understate them.")
+        if _cash_new != _cash_now:
+            # No st.rerun(): the sidebar runs before the main area, so the views
+            # below already see the new number on this same run.
+            ss.portfolio["cash"] = float(_cash_new)
+
+        # The "Stock to analyse" selector used to live here. It moved to sit
+        # directly under the router, because only two of the four views consume
+        # it — putting it in the rail cost a sidebar trip per change and left
+        # the control invisible from the screens it drives.
 
         # Only offered when there is something of the user's own to remove.
         # The old "Clear" emptied the app into a dead end whose recovery text
         # named an action ("load the demo portfolio") that appeared nowhere in
         # the sidebar. Returning to a sample is a real destination; an empty
         # screen is not.
-        if ss.get("loaded_profile") is None:
+        if book_source.is_users_own(ss.portfolio_source):
             if st.button("Remove my portfolio", use_container_width=True,
-                         help="Discard the CSV you uploaded and go back to the "
-                              "sample investors."):
+                         help=f"Discard this book "
+                              f"({book_source.label_of(ss.portfolio_source)}) "
+                              f"and go back to the sample investors."):
                 ss.last_profile_pick = DEFAULT_PROFILE
                 _load(profiles.load_portfolio(DEFAULT_PROFILE),
-                      profile_id=DEFAULT_PROFILE)
+                      source=_profile_source(DEFAULT_PROFILE))
                 st.rerun()
 
     st.divider()
@@ -305,10 +393,8 @@ def _active_context():
         return None
 
 
-context = _active_context()
-
 # Freshness, always. See _as_of().
-as_of = _as_of(context)
+as_of = _as_of()
 live_data = run_mode.describe()["data"] == "live"
 if as_of:
     source = "Live market data" if live_data else "Recorded snapshot"
@@ -317,16 +403,60 @@ if as_of:
 else:
     st.caption("Upload a portfolio and get an AI-assisted analysis across three tools.")
 
-# When a sample investor is loaded, say what it is meant to demonstrate. The
-# point of five books is that one engine reaches five different verdicts — and
-# that only lands if the reader knows what to look for. `expect` is enforced
-# against the real numbers by tests/test_profiles.py, so this is a checked claim
-# rather than marketing copy.
-if ss.get("loaded_profile"):
-    _meta = next((p for p in profiles.list_profiles()
-                  if p["id"] == ss.loaded_profile), None)
-    if _meta:
-        st.info(f"**{profiles.label(_meta)}** — {_meta['expect']}")
+# ---- Builder takeover -----------------------------------------------------
+# While the builder is open it OWNS the page: no router, no view. The four views
+# analyse the current book; this one makes one, so presenting them side by side
+# would suggest the builder is a fifth thing to look at rather than a mode you
+# are in. Hiding the router is the signal that you are somewhere else.
+#
+# Placed AFTER the freshness caption and BEFORE the identity banner, and the gap
+# between those two is deliberate. The caption belongs here — it names the close
+# the drafted cost basis is struck at. The banner does not: seen in a browser, it
+# read "Balanced growth — One sector warning: Technology sits just above 40%"
+# directly above a form for building something else entirely, warning about a
+# book the reader was in the middle of replacing.
+try:
+    from tabs import build as builder
+    if builder.is_open():
+        try:
+            builder.render(on_commit=_load)
+        except Exception as e:  # noqa: BLE001 — never strand the user in a broken mode
+            st.error(f"The builder hit a problem: {e}")
+            if st.button("Go back"):
+                builder.close()
+                st.rerun()
+        st.stop()
+except Exception as e:  # noqa: BLE001
+    # NOT `except ImportError`. A failed import is evicted from sys.modules, so
+    # an exception raised BY tabs/build.py at import time — the stale-module
+    # case app.py already documents for brand.page_title — is not an ImportError
+    # and would escape at module scope and white-screen the app, while the
+    # sidebar's own broad guard reassuringly printed "Builder unavailable".
+    # st.stop() raises StopException, which derives from BaseException, so it is
+    # not caught here.
+    st.error(f"The builder is unavailable: {e}")
+
+# ---- Whose book is this ---------------------------------------------------
+# Named on EVERY view and for EVERY kind of book, not just for sample profiles.
+# This used to fire only when `loaded_profile` was set, so a reader with their
+# own portfolio got no statement anywhere in the main area about whose data was
+# on screen — the sidebar caption was the only signal, and the sidebar is
+# collapsed on a phone.
+#
+# The two halves are rendered DIFFERENTLY on purpose. A profile's `expect` is a
+# claim tests/test_profiles.py enforces against the real numbers, so it earns
+# st.info's authority. A drafted book's note is model prose: true-sounding, and
+# checked by nobody. Giving them the same treatment would dress an unchecked
+# claim in a checked one's clothes, which is the exact move the rest of this
+# codebase refuses to make.
+_src = book_source.normalise(ss.portfolio_source)
+if _src["detail"] and book_source.detail_is_checked(_src):
+    st.info(f"**{_src['label']}** — {_src['detail']}")
+elif _src["detail"] and _src["kind"] == "drafted":
+    st.caption(f":material/auto_awesome: **{theme.safe_md(_src['label'])}** — "
+               f"{theme.safe_md(_src['detail'])}")
+elif book_source.is_users_own(_src):
+    st.caption(f":material/description: **{_src['label']}**")
 
 from tabs.attribution import render as render_attribution
 from tabs.chat import render as render_chat
@@ -363,6 +493,46 @@ chosen = st.segmented_control(
 if chosen:
     ss.view = chosen
 view = ss.view
+
+# ---- Stock selector ------------------------------------------------------
+# Only TWO of the four views take a stock: Bull vs Bear and What Happened Today
+# both render `get_context(active_ticker)`, while the Dashboard and Ask the
+# analyst are portfolio-wide. So the control renders on exactly those two, right
+# under the router and above the thing it drives. In the sidebar it cost a trip
+# to the rail for every change and was invisible from the screens it controlled;
+# on all four views it would have advertised control it does not have on half.
+#
+# NO `key=`. Streamlit discards widget state for any widget not instantiated on
+# a run, and it does the sweep at END of run — so a keyed picker resets on the
+# SECOND view switch, not the first, which is how this ships broken. Keeping
+# `ss.active_ticker` as plain app-owned state and passing it back as `index=`
+# survives the round trip, and it is what this line already did in the sidebar.
+# (`key="active_ticker"` while also assigning to `ss.active_ticker` is a hard
+# StreamlitAPIException, so that shape is not available anyway.)
+#
+# `active_ticker` must stay non-None on EVERY view regardless: reporting/panel.py
+# reads it from the header to decide which debate goes in the PDF, and it uses
+# .get(), so a lost value would silently ship a report with the Bull vs Bear
+# section missing — no error, no warning, and that section is the reason the
+# export exists.
+NEEDS_TICKER = {"Bull vs Bear", "What Happened Today"}
+
+context = None
+if view in NEEDS_TICKER:
+    _tickers = [p["ticker"] for p in (ss.portfolio or {}).get("positions", [])]
+    if _tickers:
+        _idx = _tickers.index(ss.active_ticker) if ss.active_ticker in _tickers else 0
+        _pick_col, _ = st.columns([2, 5])
+        with _pick_col:
+            ss.active_ticker = st.selectbox(
+                "Stock to analyse", _tickers, index=_idx,
+                help="Bull vs Bear and What Happened Today both analyse this "
+                     "stock. The Dashboard and Ask the analyst cover your whole "
+                     "book, which is why this only appears on these two.")
+    # Gated, so the two portfolio-wide views no longer pay for a context they
+    # never read — in live mode that was a yfinance round trip per rerun on
+    # Dashboard and on Ask the analyst.
+    context = _active_context()
 
 if view == "Dashboard":
     try:

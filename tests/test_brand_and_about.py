@@ -266,3 +266,77 @@ def test_about_is_gated_on_session_state_not_the_button_branch():
     assert "session_state" in src
     app_src = open(os.path.join(BASE, "app.py"), encoding="utf-8").read()
     assert "about.maybe_render()" in app_src
+
+
+# --------------------------------------------------------------------------
+# The Guide must not describe an app that no longer exists
+# --------------------------------------------------------------------------
+#
+# It is the app's own account of itself, so a stale line there is not merely
+# incomplete — it is the product telling the reader something false. The stock
+# selector moved out of the sidebar; the sentence that said otherwise was still
+# sitting in step 4 and read perfectly well.
+
+def _about_source():
+    import os
+    return open(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "about.py"), encoding="utf-8").read()
+
+
+def _about_text():
+    """about.py's copy as a reader sees it, near enough to search.
+
+    Scanning the raw source does not work: the Guide's copy is built from
+    adjacent Python string literals wrapped in markup, so "Build a portfolio"
+    is really `"<b>Build a "` + `"portfolio</b>"` across a line break and never
+    appears contiguously. Joining adjacent literals and dropping tags first is
+    what makes a phrase check mean what it looks like it means.
+    """
+    import re
+    src = _about_source()
+    src = re.sub(r'"\s*\n\s*f?"', "", src)      # join split string literals
+    src = re.sub(r"<[^>]+>", "", src)             # drop markup
+    return re.sub(r"\s+", " ", src).lower()
+
+
+def test_the_guide_does_not_claim_the_stock_selector_is_in_the_sidebar():
+    src = _about_text()
+    for stale in ("the sidebar selector drives",
+                  "sidebar selector",
+                  "selector in the sidebar"):
+        assert stale not in src, f"the Guide still says {stale!r}"
+
+
+def test_the_guide_names_all_three_ways_to_bring_a_portfolio():
+    """Upload, build by hand, or have one drafted — the Guide is the only place
+    a reader finds out the last two exist at all."""
+    src = _about_text()
+    assert "csv" in src
+    assert "build a portfolio" in src
+    assert "drafted" in src
+
+
+def test_the_guide_explains_that_the_selector_only_appears_on_two_views():
+    src = _about_text()
+    assert "bull vs bear" in src and "what happened today" in src
+    assert "under the view buttons" in src or "under the router" in src
+
+
+def test_the_guide_covers_editable_cash_and_says_it_is_not_in_the_weights():
+    src = _about_text()
+    assert "cash" in src
+    assert "weight" in src
+
+
+def test_the_guide_never_calls_a_drafted_book_a_recommendation():
+    src = _about_text()
+    assert "demonstration" in src
+    for phrase in ("we recommend", "recommended for you", "suitable for you"):
+        assert phrase not in src, f"the Guide says {phrase!r}"
+
+
+def test_the_view_grid_is_still_four_cards():
+    """The builder is a mode, not a view. A fifth card would contradict the
+    router the grid is a map of."""
+    import about
+    assert len(about.VIEWS) == 4

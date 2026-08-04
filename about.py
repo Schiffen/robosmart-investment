@@ -117,8 +117,9 @@ def _dialog() -> None:
         f"<p style='text-align:center;color:{theme.INK_2};font-size:1.02rem;"
         f"line-height:1.6;max-width:60ch;margin:0 auto 1.4rem'>"
         f"Four ways to look at one portfolio — three that <b>compute</b>, and "
-        f"two that <b>argue</b>. Every number on screen comes from market data "
-        f"or from a tool call, never from a model's memory.</p>",
+        f"two that <b>argue</b> — and two ways to make one if you have not got "
+        f"a portfolio to hand. Every number on screen comes from market data or "
+        f"from a tool call, never from a model's memory.</p>",
         unsafe_allow_html=True)
 
     # ---- The map ---------------------------------------------------------
@@ -147,12 +148,24 @@ def _dialog() -> None:
         ("Switch investor", "five sample books in the sidebar. One engine "
                             "reaches five different verdicts — that contrast "
                             "is what they are there to show."),
-        ("Load your own", "a CSV of <code>ticker,shares,cost_basis</code>, "
-                          "with an optional <code>sector</code> column and an "
-                          "optional <code>CASH</code> row. Template in the "
-                          "sidebar."),
-        ("Choose the stock", "the sidebar selector drives both Bull vs Bear "
-                             "and What Happened Today."),
+        ("Bring your own", "three ways, all in the sidebar. Upload a CSV of "
+                           "<code>ticker,shares,cost_basis</code> — the amount "
+                           "for a <code>CASH</code> row goes in the "
+                           "<code>shares</code> column. Or <b>Build a "
+                           "portfolio</b>: type the holdings in, or answer a "
+                           "few questions and have an example book drafted for "
+                           "you to edit."),
+        ("Choose the stock", "the selector under the view buttons. It appears "
+                             "only on <b>Bull vs Bear</b> and <b>What Happened "
+                             "Today</b>, because those are the two views that "
+                             "analyse a single stock — the other two cover your "
+                             "whole book, so there would be nothing for it to "
+                             "change."),
+        ("Adjust your cash", "editable in the sidebar at any time. It counts "
+                             "toward your total value and is deliberately left "
+                             "out of every weight, sector split and beta — "
+                             "those are equity-risk figures, and idle cash "
+                             "would understate them."),
         ("Change the window", "<code>1M / 3M / 6M / YTD / 1Y</code> above the "
                               "performance chart. <b>1Y is where it starts, so "
                               "it is also the reset</b> — one tap back to the "
@@ -165,6 +178,36 @@ def _dialog() -> None:
         "<ol class='rs-guide-steps'>"
         + "".join(f"<li><b>{t}</b> — {d}</li>" for t, d in steps)
         + "</ol>", unsafe_allow_html=True)
+
+    # ---- Whose book is on screen ------------------------------------------
+    # The reader-facing half of book_source.py. Four kinds of book now reach
+    # the same four views and the same PDF, and the app names which one it is
+    # rather than leaving you to remember.
+    st.markdown("<div class='rs-guide-head'>Where your book comes from</div>",
+                unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color:{theme.INK_2};line-height:1.6;max-width:68ch'>"
+        f"A portfolio reaches this app four ways, and the line under the title "
+        f"always says which one you are looking at — the same name goes on the "
+        f"cover of the exported PDF, so a report can never call a book "
+        f"something it is not.</p>"
+        f"<ul style='color:{theme.INK_2};line-height:1.6;max-width:68ch'>"
+        f"<li>A <b>sample investor</b> — five shipped books. What each one "
+        f"claims to demonstrate is checked against the real numbers by the "
+        f"test suite, so those captions cannot quietly become false.</li>"
+        f"<li>A <b>CSV you uploaded</b> — any ticker at all; live prices will "
+        f"be fetched for it.</li>"
+        f"<li>A book <b>you built here</b> — chosen from a curated shelf, so "
+        f"every holding is guaranteed to have market data, including offline."
+        f"</li>"
+        f"<li>A book <b>drafted from your investor profile</b> — arranged from "
+        f"that same shelf to match what you said about yourself. It is a "
+        f"<b>demonstration</b> so you have something of your own to explore "
+        f"with, never a recommendation, and you review and edit every row "
+        f"before it becomes your portfolio. Where what you said and what the "
+        f"book measures pull in different directions, the app names both sides "
+        f"and leaves the choice to you.</li></ul>",
+        unsafe_allow_html=True)
 
     # ---- The one thing worth reading twice --------------------------------
     st.markdown("<div class='rs-guide-head'>The line under the title</div>",
