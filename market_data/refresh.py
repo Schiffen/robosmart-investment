@@ -172,20 +172,38 @@ def validate(contexts: dict, histories: dict) -> tuple[list, list]:
 # --------------------------------------------------------------------------
 
 def demo_book_tickers() -> list:
-    """Every symbol used by any sample investor profile.
+    """The UNION of the curated shelf and every sample profile's holdings.
 
-    Sourced from `profiles.all_tickers()` rather than a hardcoded list, so
-    adding a holding to a profile automatically brings it into the offline
-    fixture on the next refresh. Falls back to the original demo book if the
-    profiles package is unavailable.
+    Both are sourced rather than hardcoded, so adding a holding to a profile or
+    a name to `shelf.py` brings it into the offline fixture on the next refresh.
+
+    Union, not replacement, and that ordering matters: the shelf is what the
+    builder and the generator may draw on, while the profiles are what the app
+    ships and what tests/test_profiles.py asserts against. If this returned the
+    shelf alone, editing shelf.py could quietly drop a profile's ticker out of
+    the fixture and break five sample books at once. Shelf first so the recorded
+    order reads like the picker.
+
+    Falls back to the original demo book if neither module is importable.
     """
+    tickers: list = []
+    try:
+        import shelf
+        tickers = list(shelf.tickers())
+    except Exception as e:  # noqa: BLE001 — never block a refresh on this
+        print(f"  (shelf unavailable: {e})")
     try:
         import profiles
-        tickers = profiles.all_tickers()
-        if tickers:
-            return tickers
-    except Exception as e:  # noqa: BLE001 — never block a refresh on this
-        print(f"  (profiles unavailable: {e}; falling back to mock_portfolio.json)")
+        for t in profiles.all_tickers():
+            if t not in tickers:
+                tickers.append(t)
+    except Exception as e:  # noqa: BLE001
+        print(f"  (profiles unavailable: {e})")
+
+    if tickers:
+        return tickers
+
+    print("  (falling back to mock_portfolio.json)")
     with open(PORTFOLIO_PATH, encoding="utf-8") as fh:
         portfolio = json.load(fh)
     return [p["ticker"] for p in portfolio.get("positions", [])]
