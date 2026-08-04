@@ -21,6 +21,7 @@ import re
 
 import pytest
 
+import book_source
 import theme
 from tabs.attribution import _safe_link
 
@@ -159,7 +160,8 @@ def test_a_hostile_debate_renders_without_emitting_markup(monkeypatch):
     at = AppTest.from_file(APP, default_timeout=180)
     at.session_state["view"] = "Bull vs Bear"
     at.session_state["portfolio"] = book
-    at.session_state["loaded_profile"] = "balanced_growth"
+    at.session_state["portfolio_source"] = book_source.profile(
+        "balanced_growth", label="Balanced growth", expect="a checked claim")
     at.session_state["active_ticker"] = ticker
     at.session_state["debate_results"] = {ticker: poisoned}
     at.run()

@@ -144,7 +144,8 @@ def _pct(v) -> str:
 def build(*, portfolio: dict, positions, sector_df=None, figures=None,
           profile_label: str | None = None, as_of: str | None = None,
           data_source: str = "market data", currency: str = "$",
-          debate: dict | None = None, attribution: dict | None = None) -> bytes:
+          debate: dict | None = None, attribution: dict | None = None,
+          investor_profile: dict | None = None) -> bytes:
     """Produce the report as PDF bytes.
 
     `figures` is an ordered list of (caption, plotly figure). Any that cannot
@@ -156,6 +157,16 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
     weakest claim on each side is not, and it is the part someone would
     actually send to another person. Both are optional — the report covers
     whatever the app currently knows and says nothing about what it does not.
+
+    `investor_profile` is present only for a book DRAFTED from the questionnaire,
+    and carries `answers`, `bounds`, `note` and `tensions`. It deliberately does
+    NOT carry the reader's free-text self-description. The answers are short,
+    structured and checkable against the holdings table two pages later — they
+    explain why the book looks the way it does. The free text is somebody
+    describing themselves in their own words, and the whole point of this
+    document is that it gets sent to another person. Putting personal prose into
+    a shareable artifact is a decision its author should make deliberately, not
+    one the export quietly makes on their behalf.
     """
     try:
         from reportlab.graphics import renderPDF
@@ -220,7 +231,13 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
     # export people are meant to keep and send on.
     invested = float(np.nansum(positions["market_value"].to_numpy(dtype=float)))
     cash = float(portfolio.get("cash", 0) or 0)
-    subject = profile_label or "Your uploaded portfolio"
+    # The fallback is now defensive only. `panel._book_label()` returns a real
+    # label for all four kinds of book (sample, uploaded, built, drafted), so
+    # this no longer decides anything. It used to: None meant "not a sample",
+    # which was true of an uploaded CSV and equally of a book built in the app
+    # or drafted from a questionnaire — and all three printed "Your uploaded
+    # portfolio", making the cover state something false about its own subject.
+    subject = profile_label or "Your portfolio"
 
     y = mark_bottom - 34 * mm
     c.setFillColor(colors.HexColor(RULE))
@@ -332,6 +349,55 @@ def build(*, portfolio: dict, positions, sector_df=None, figures=None,
             c.showPage()
             if len(remaining) == before:    # nothing fitted — refuse to loop
                 break
+
+    # ---- How this book was put together ----------------------------------
+    # Only for a DRAFTED book, and it comes FIRST, because it explains the
+    # holdings the rest of the report then analyses. Answers only — see the
+    # docstring on why the free-text self-description is deliberately absent.
+    if investor_profile:
+        answers = investor_profile.get("answers") or []
+        bounds = investor_profile.get("bounds") or []
+        tensions = investor_profile.get("tensions") or []
+        note = investor_profile.get("note")
+
+        items = [Paragraph("How this book was put together", h2),
+                 Paragraph("This portfolio was drafted from a short investor "
+                           "questionnaire and then reviewed by hand. It is a "
+                           "demonstration book, not a recommendation.", small),
+                 Spacer(1, 6)]
+
+        if answers:
+            items.append(Paragraph("What was answered", h3))
+            for pair in answers:
+                # Unpacked defensively: this is the only shape assumption in an
+                # otherwise fully guarded function, and a malformed entry would
+                # raise out of build() and kill the whole export rather than
+                # dropping one line.
+                try:
+                    question, choice = pair
+                except (TypeError, ValueError):
+                    continue
+                items.append(Paragraph(
+                    f"{pdf_safe(question)}<br/>"
+                    f"<font color='{PAGE_INK}'><b>{pdf_safe(choice)}</b></font>",
+                    small))
+        if bounds:
+            items.append(Paragraph("What those answers required", h3))
+            for line in bounds:
+                items.append(Paragraph(f"• {pdf_safe(line)}", small))
+        if note:
+            items.append(Paragraph("What to look at first", h3))
+            items.append(Paragraph(pdf_safe(note), body))
+        if tensions:
+            # Named, never resolved. Saying which way to settle one would be
+            # advice, and this document is read without anyone to ask.
+            items.append(Paragraph("Where the answers and the book disagree", h3))
+            for t in tensions:
+                items.append(Paragraph(
+                    f"<b>Said</b> {pdf_safe(t.get('said'))} · "
+                    f"<b>found</b> {pdf_safe(t.get('found'))}", small))
+                items.append(Paragraph(pdf_safe(t.get("text")), small))
+        flow(items)
 
     if attribution:
         tkr = pdf_safe(attribution.get("ticker") or "")

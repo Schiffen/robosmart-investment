@@ -84,6 +84,8 @@ def _dialog(portfolio: dict | None) -> None:
         "- How correlated your holdings are, and a one-year backtest\n"
         + (f"- The **{ticker}** Bull vs Bear debate, both cases and the "
            f"judge's verdict\n" if debate else "")
+        + ("- The questionnaire this book was drafted from, and what it "
+           "required\n" if _investor_profile() else "")
     )
     if not debate:
         st.caption(":material/info: Run a **Bull vs Bear** debate and it will "
@@ -104,6 +106,7 @@ def _dialog(portfolio: dict | None) -> None:
                     currency=data["currency"],
                     debate=dict(debate, ticker=ticker) if debate else None,
                     profile_label=_book_label(),
+                    investor_profile=_investor_profile(),
                     data_source=("Live market data"
                                  if run_mode.describe()["data"] == "live"
                                  else "Recorded snapshot"))
@@ -121,21 +124,36 @@ def _dialog(portfolio: dict | None) -> None:
                    f"{brand.PRODUCT}")
 
 
-def _book_label() -> str | None:
-    """The name of the book being reported on, or None for an upload.
+def _investor_profile():
+    """The questionnaire summary, for a DRAFTED book only.
 
-    None is meaningful downstream: report.build prints "Your uploaded
-    portfolio" for it, so a user's own CSV is named as theirs rather than
-    silently borrowing a sample investor's title.
+    Guarded on the source rather than on the key alone: the profile must not
+    survive onto a book that replaced the drafted one, or the report would
+    explain a portfolio that is no longer on screen.
     """
-    import profiles
-    pid = st.session_state.get("loaded_profile")
-    if not pid:
+    import book_source
+    src = st.session_state.get("portfolio_source")
+    if book_source.kind_of(src) != "drafted":
         return None
-    meta = next((p for p in profiles.list_profiles() if p["id"] == pid), None)
-    return profiles.label(meta) if meta else pid
+    return st.session_state.get("portfolio_profile") or None
+
+
+def _book_label() -> str:
+    """The name of the book being reported on. Always a real string.
+
+    This used to return None for anything that was not a sample profile, and
+    report.build's cover does `subject = profile_label or "Your uploaded
+    portfolio"`. That was survivable while a CSV was the only other way in. It
+    stopped being survivable the moment a book could be BUILT in the app or
+    DRAFTED from a questionnaire: both would have gone out on a cover titled
+    "Your uploaded portfolio", in the one artifact whose entire purpose is being
+    sent to somebody who was never in front of the app.
+    """
+    import book_source
+    return book_source.label_of(st.session_state.get("portfolio_source"))
 
 
 def _filename() -> str:
-    book = (st.session_state.get("loaded_profile") or "portfolio")
-    return f"robosmart-{book}-report.pdf".replace("_", "-")
+    import book_source
+    slug = book_source.filename_slug(st.session_state.get("portfolio_source"))
+    return f"robosmart-{slug}-report.pdf"
