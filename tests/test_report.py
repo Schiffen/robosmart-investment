@@ -298,7 +298,7 @@ def test_hostile_attribution_text_also_survives(book):
 def test_debate_section_carries_the_verdict_and_both_sides(book):
     import json
     p, df, sect = book
-    deb = json.load(open(os.path.join(BASE, "mock_debate.json")))
+    deb = json.load(open(os.path.join(BASE, "fixtures", "mock_debate.json")))
     deb["ticker"] = "NVDA"
     text = _text(report.build(portfolio=p, positions=df, sector_df=sect,
                               debate=deb))
@@ -315,7 +315,7 @@ def test_debate_section_says_the_text_is_model_generated(book):
     other way to know which parts a model wrote."""
     import json
     p, df, sect = book
-    deb = json.load(open(os.path.join(BASE, "mock_debate.json")))
+    deb = json.load(open(os.path.join(BASE, "fixtures", "mock_debate.json")))
     text = _text(report.build(portfolio=p, positions=df, sector_df=sect,
                               debate=deb))
     assert "language model" in text.lower()

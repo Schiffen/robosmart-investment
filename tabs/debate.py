@@ -309,7 +309,7 @@ def _render_debate(result: dict) -> None:
 
     The old order was openings -> rebuttals -> judge, which put the ANSWER
     ~4,200px below the fold at the end of a scroll, after a 25-second wait
-    during which the page never moved. PRODUCT.md's own principle is "the plain
+    during which the page never moved. docs/PRODUCT.md's own principle is "the plain
     answer on the surface, the method one layer down" — so the verdict leads and
     the debate that produced it sits underneath, where a reader who wants the
     method can reach it without a reader who wants the answer having to scroll

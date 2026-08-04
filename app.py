@@ -241,7 +241,7 @@ with st.sidebar:
             # against the PROCESS working directory, not against app.py, and the
             # `except OSError: pass` below would then silently drop the download
             # button with no error anywhere.
-            with open(Path(__file__).parent / "sample_portfolio.csv", "rb") as fh:
+            with open(Path(__file__).parent / "fixtures" / "sample_portfolio.csv", "rb") as fh:
                 st.download_button("Download a template", fh.read(),
                                    file_name="robosmart_template.csv",
                                    mime="text/csv", use_container_width=True)

@@ -166,18 +166,18 @@ R² = 43%**, average pairwise correlation **0.05**, **6.1 effective holdings of 
 **Technology = 48%** concentration flag, annualised volatility **11.8%**, maximum
 drawdown **−7.4%**, and a 1-year return of **+28.2% (+10.9% vs the S&P 500)**.
 
-![Portfolio Dashboard](screenshot_dashboard.png)
+![Portfolio Dashboard](screenshots/dashboard.png)
 
 **Bull vs Bear.** A five-round debate streams in; Bull and Bear open with number-cited
 arguments, the Bear presses without conceding, and the Judge closes with a verdict —
 here **inconclusive at 58% confidence** — plus its three falsifiers.
 
-![Bull vs Bear](screenshot_debate.png)
+![Bull vs Bear](screenshots/debate.png)
 
 **What Happened Today.** The factor decomposition of the day's move with its R²,
 followed by the model explaining *only* the residual — or declining to.
 
-![What Happened Today](screenshot_attribution.png)
+![What Happened Today](screenshots/attribution.png)
 
 ---
 

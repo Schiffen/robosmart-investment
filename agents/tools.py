@@ -6,7 +6,7 @@ and is already tested: portfolio_metrics, factor_model, data_layer. Nothing in
 this file computes finance. That is the whole point.
 
 WHY THIS SHAPE. The product's credibility rests on "the math runs first and the
-model only interprets it" (PRODUCT.md principle 1). A chat agent is the easiest
+model only interprets it" (docs/PRODUCT.md principle 1). A chat agent is the easiest
 possible place to lose that: a model asked "why am I down?" will happily invent
 a number. Here it cannot — every figure it can say comes back from a tool call
 that ran the same tested code the dashboard runs. The model chooses WHICH

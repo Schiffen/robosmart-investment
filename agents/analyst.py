@@ -59,7 +59,7 @@ def _system_prompt() -> str:
 def _mock_answer(portfolio: dict, question: str, on_event=None) -> dict:
     """No API key: run the tools for real, then say plainly that the wording is
     canned. Recorded output that looks live is the failure this codebase exists
-    to design against (PRODUCT.md principle 4), so it is labelled, not hidden."""
+    to design against (docs/PRODUCT.md principle 4), so it is labelled, not hidden."""
     calls = []
     for name in ("get_portfolio_summary", "get_day_contributions"):
         if on_event:

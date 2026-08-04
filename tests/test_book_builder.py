@@ -81,7 +81,7 @@ def weights(book):
 
 @pytest.mark.parametrize("name", list(PROFILES))
 def test_the_offline_book_is_marked_as_rule_drafted(name):
-    """Recorded output must never be able to look live (PRODUCT.md principle 4)."""
+    """Recorded output must never be able to look live (docs/PRODUCT.md principle 4)."""
     _, _, book = draft(name)
     assert book["is_mock"] is True
     assert book["generated_by"] == "rules"

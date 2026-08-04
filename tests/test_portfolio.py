@@ -196,7 +196,7 @@ def test_the_merged_row_keeps_the_first_rows_sector():
 # --------------------------------------------------------------------------
 
 def test_the_downloadable_template_parses():
-    book = parse_portfolio(os.path.join(REPO, "sample_portfolio.csv"))
+    book = parse_portfolio(os.path.join(REPO, "fixtures", "sample_portfolio.csv"))
     assert book["cash"] == 5000.0
     assert len(book["positions"]) == 7
     assert {p["ticker"] for p in book["positions"]} == {

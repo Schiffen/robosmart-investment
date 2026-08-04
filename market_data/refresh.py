@@ -31,9 +31,9 @@ from market_data import live  # noqa: E402
 from market_data.errors import TickerNotFoundError  # noqa: E402
 
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "market_data.json")
-PORTFOLIO_PATH = os.path.join(os.path.dirname(__file__), "..", "mock_portfolio.json")
+PORTFOLIO_PATH = os.path.join(os.path.dirname(__file__), "..", "fixtures", "mock_portfolio.json")
 
-# Contract B, exactly as INTEGRATION_CONTRACT.md freezes it.
+# Contract B, exactly as docs/INTEGRATION_CONTRACT.md freezes it.
 REQUIRED_TOP = {"ticker", "company_name", "sector", "sector_etf", "price",
                 "returns", "fundamentals", "technicals", "news", "benchmarks",
                 "history"}

@@ -91,12 +91,23 @@ agents/analyst.py       tool-using agent: manual tool-use loop, MAX_ITERATIONS b
 prompts/*.txt           externalised system prompts — rules live HERE, not in code
 tabs/*.py               render only; all numbers come from the pure modules
 theme.py                shared design tokens
+fixtures/               canned inputs the app ships with — mock_portfolio.json (the demo
+                        book), mock_debate.json (recorded debate), mock_context.json
+                        (synthetic dev stand-in), sample_portfolio.csv (the download)
+profiles/               the five sample books selectable from the sidebar
+docs/                   project documentation + coursework deliverables (docs/README.md
+                        says which is which)
 ```
+
+> **`fixtures/` was the repo root until 2026-08-04.** Every loader is now `__file__`-anchored
+> — `data_layer_mock`'s three `path=` defaults included, which were CWD-relative and would
+> write the JSON wherever the caller happened to be standing. If you see `mock_*.json` or
+> `sample_portfolio.csv` referenced without `fixtures/`, it is a stale reference.
 
 ## Invariants — do not break these
 
 1. **Contract B keys are always present**, `None` when missing, never omitted. Frozen in
-   `INTEGRATION_CONTRACT.md` §1.
+   `docs/INTEGRATION_CONTRACT.md` §1.
 2. **`clean_history` runs at the fetch boundary.** Yahoo serves the newest bar with
    O/H/L/V but a NaN Close until it settles. Every consumer ends on `.iloc[-1]`, so one
    unguarded NaN blanks the entire app — price, technicals, returns, weights, beta, risk
@@ -104,7 +115,7 @@ theme.py                shared design tokens
 3. **`current` is the last SETTLED close.** Everything stays close-to-close so portfolio
    beta and the attribution waterfall reconcile against the same SPY series.
 4. **One benchmark source** — `data_layer.get_benchmark_history`. The dashboard and the
-   factor model both use it so their numbers cannot disagree (`INTEGRATION_CONTRACT.md` §3).
+   factor model both use it so their numbers cannot disagree (`docs/INTEGRATION_CONTRACT.md` §3).
 5. **News fields are always text.** `published` arrives as a Unix epoch int from
    `yf.Ticker().news` and an ISO string from `yf.Search`; it is normalised in the data
    layer. These strings go into prompts, so a stray int crashes an agent.
@@ -401,7 +412,7 @@ waterfall's three components over a year instead of a day. No new plumbing; `sec
   whose src is an inline SVG data URI — a shape `<img src=x onerror=…>` cannot reach — so
   the guard keeps full strength rather than being widened to pass.
 
-#### PDF export (`report.py` + `report_charts.py`)
+#### PDF export (`reporting/document.py` + `reporting/charts.py`)
 
 "Download PDF" from the **header**, beside the Guide. reportlab + svglib build the
 document; **matplotlib** draws the figures. All three are pure Python, so the export is
@@ -413,10 +424,10 @@ cannot be said about a feature whose purpose is that users save and send it.
 > fails three ways: 0.2.1 ships no macOS arm64 binary (installs clean, dies at render);
 > 1.x refuses Plotly 5.24 through `fig.to_image()`; and 1.x drives a **real headless
 > Chrome**, which Community Cloud has not got. That last one left the DEPLOYED export with
-> tables and no charts. `report_charts` redraws the same DataFrames with matplotlib — no
+> tables and no charts. `reporting/charts` redraws the same DataFrames with matplotlib — no
 > browser, manylinux wheels, all five figures in ~0.5s against kaleido's ~7s.
 
-> `report_charts` is a second **renderer**, never a second source of numbers. Every
+> `reporting/charts` is a second **renderer**, never a second source of numbers. Every
 > function takes the DataFrame the matching Plotly builder takes. A test parses its
 > imports (not its source — the docstring names `portfolio_metrics` while explaining this
 > very rule) and fails if it ever imports an analytics module.
@@ -458,7 +469,7 @@ and the falsifiers) plus the day's factor decomposition. Both are optional; the 
 covers whatever the app currently knows. The Dashboard states, before you press Generate,
 whether a debate will be included — while you can still go and run one.
 
-> **`report.pdf_safe()` is `theme.safe` for a new medium**, and invariant #10 now has two
+> **`reporting.document.pdf_safe()` is `theme.safe` for a new medium**, and invariant #10 now has two
 > boundaries, not one. reportlab's `Paragraph` parses a small HTML dialect, so a verdict
 > containing `P/E < 20 & falling` **raises and kills the export**, and one containing
 > `<font color=white>` would be *obeyed*. Do not reuse `theme.safe` here — it emits `&#36;`
@@ -538,7 +549,7 @@ divide) surfaced by BLAS, not corruption — inputs and outputs verified finite.
 
 Hugging Face **removed the Streamlit SDK** (`sdk` accepts only `gradio|docker|static`) and
 now requires a **PRO subscription** for Docker Spaces. Deployment moved to Streamlit
-Community Cloud. `DEPLOY.md` still describes the dead HF path and needs rewriting. A
+Community Cloud. `docs/DEPLOY.md` still describes the dead HF path and needs rewriting. A
 `Dockerfile` exists and works, but is currently unused.
 
 Streamlit Cloud exposes secrets via `st.secrets`, **not** env vars — `app.py`'s
@@ -557,7 +568,7 @@ global config is a *different* account and must stay untouched. Never run
 | Item | State |
 |---|---|
 | Delete old `roischiffen/robosmart-investment` | still public; needs `delete_repo` scope or the browser |
-| Rotate `ANTHROPIC_API_KEY` once more before submission | current key leaked into a session transcript (local only) |
+| Rotate `ANTHROPIC_API_KEY` before submission | routine hygiene. No key has ever been committed — verified across all history |
 | Rewrite `docs/summary_document.pdf` | stale — predates the data layer, profiles, deployment, the analyst agent AND the 2026-08-01 design pass. **20% of the grade — the biggest single lever left** |
 | Record the 3–5 min demo video | `docs/video_script.md` is itself stale: it describes a UI that no longer exists (no lede block, no stage strip, emoji router). Re-script before recording |
 | Submit the course survey | **5% of the grade**, free points |
@@ -581,7 +592,7 @@ on the **20% documentation** line, which is still stale.
 
 ### Design phase (in progress)
 
-`PRODUCT.md` is written (Impeccable `init`). Key recorded decisions: beginner-primary with
+`docs/PRODUCT.md` is written (Impeccable `init`). Key recorded decisions: beginner-primary with
 evaluator-legible depth; **substance preserved, structure free to change**; positioning is
 **execution-led** — the user's stated differentiator is design, motion and frontend craft.
 
@@ -593,7 +604,7 @@ the same document, not iframes, so a shared timeline across the page is reachabl
 `gsap-scrolltrigger` was written off as React-only on the same reasoning; GSAP is vanilla
 JS and runs fine inside a CCv2 component. (`motion-framer` genuinely is React-only.)
 
-The migration question stays open because it is the user's call, but see PRODUCT.md: no
+The migration question stays open because it is the user's call, but see docs/PRODUCT.md: no
 argument for it currently survives contact with the evidence.
 
 Impeccable's detector **does** work here (it reads CSS inside Python strings). Both

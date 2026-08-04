@@ -24,9 +24,15 @@ internals — they only rely on the shared contract.
 from __future__ import annotations
 
 import json
+import os
 
 import numpy as np
 import pandas as pd
+
+# Anchored to this file, not to the process working directory. These helpers
+# author and reload a fixture, and a CWD-relative default silently writes the
+# JSON wherever the caller happened to be standing.
+_CONTEXT_JSON = os.path.join(os.path.dirname(__file__), "fixtures", "mock_context.json")
 
 # --------------------------------------------------------------------------
 # Universe definition (fixed, deterministic)
@@ -288,7 +294,7 @@ def _records_to_history(rec: dict) -> pd.DataFrame:
                         index=pd.to_datetime(rec["index"]))
 
 
-def export_mock_context_json(path: str = "mock_context.json", tickers: list | None = None) -> str:
+def export_mock_context_json(path: str = _CONTEXT_JSON, tickers: list | None = None) -> str:
     """Write a JSON with each ticker's full context (history as records) + SPY."""
     tickers = tickers or list(_UNIVERSE.keys())
     payload = {}
@@ -302,7 +308,7 @@ def export_mock_context_json(path: str = "mock_context.json", tickers: list | No
     return path
 
 
-def load_mock_context_json(path: str = "mock_context.json") -> dict:
+def load_mock_context_json(path: str = _CONTEXT_JSON) -> dict:
     """Rebuild {ticker: context} (history back to a DataFrame) from the JSON."""
     with open(path) as f:
         payload = json.load(f)
@@ -316,7 +322,7 @@ def load_mock_context_json(path: str = "mock_context.json") -> dict:
     return out
 
 
-def load_benchmark_json(path: str = "mock_context.json", symbol: str = "SPY") -> pd.DataFrame:
+def load_benchmark_json(path: str = _CONTEXT_JSON, symbol: str = "SPY") -> pd.DataFrame:
     with open(path) as f:
         payload = json.load(f)
     return _records_to_history(payload["_benchmarks"][symbol])
@@ -328,5 +334,5 @@ if __name__ == "__main__":
         print(f"{t}: {c['company_name']} | price {c['price']['current']} "
               f"| dchg {c['price']['day_change_pct']}% | hist {c['history'].shape}")
     print("SPY last close:", get_benchmark_history('SPY')['Close'].iloc[-1].round(2))
-    p = export_mock_context_json("mock_context.json")
+    p = export_mock_context_json()
     print("wrote", p)

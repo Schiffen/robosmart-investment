@@ -23,7 +23,7 @@ pandoc "$DOCS/summary_document.md" \
   --embed-resources \
   --resource-path="$DOCS" \
   --css="$DOCS/print.css" \
-  --metadata title="RoboSmart Investment — Project Summary" \
+  --metadata title="RoboSmart Debate Club — Project Summary" \
   -o "$HTML"
 
 "$CHROME" --headless --disable-gpu --no-pdf-header-footer \

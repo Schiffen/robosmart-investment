@@ -168,7 +168,7 @@ def test_selling_a_whole_position_reduces_holdings_count(book):
 # --------------------------------------------------------------------------
 
 def test_mock_mode_labels_itself_and_still_computes_real_numbers(book):
-    """Demo mode must never look live (PRODUCT.md principle 4) — but the numbers
+    """Demo mode must never look live (docs/PRODUCT.md principle 4) — but the numbers
     it shows are genuinely computed, so the tools really do run."""
     from agents.analyst import ask
     out = ask(book, "why am I down today?")

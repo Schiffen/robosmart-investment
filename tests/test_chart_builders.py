@@ -12,7 +12,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _fixture():
-    port = json.load(open(os.path.join(BASE, "mock_portfolio.json")))
+    port = json.load(open(os.path.join(BASE, "fixtures", "mock_portfolio.json")))
     tickers = [p["ticker"] for p in port["positions"]]
     ctx = data_layer.get_context_batch(tickers)
     df = pm.position_values(port, ctx)

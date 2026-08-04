@@ -297,8 +297,8 @@ def parse_portfolio(uploaded_file) -> dict:
 
 
 def sample_portfolio() -> dict:
-    """The demo book (loads mock_portfolio.json; falls back to an inline copy)."""
-    p = os.path.join(os.path.dirname(__file__), "mock_portfolio.json")
+    """The demo book (loads fixtures/mock_portfolio.json; falls back to an inline copy)."""
+    p = os.path.join(os.path.dirname(__file__), "fixtures", "mock_portfolio.json")
     if os.path.exists(p):
         with open(p) as f:
             return json.load(f)

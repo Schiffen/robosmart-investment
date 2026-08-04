@@ -18,7 +18,7 @@ AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 
 def test_dashboard_renders_without_exception(monkeypatch):
-    monkeypatch.chdir(BASE)                       # so open("mock_portfolio.json") resolves
+    monkeypatch.chdir(BASE)                       # so any CWD-relative fixture read resolves
     at = AppTest.from_file(APP, default_timeout=60).run()
     assert not at.exception, f"App raised: {at.exception}"
     # 4 headline tiles + 4 risk tiles

@@ -27,7 +27,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @pytest.fixture(scope="function")
 def book():
-    with open(os.path.join(BASE, "mock_portfolio.json")) as fh:
+    with open(os.path.join(BASE, "fixtures", "mock_portfolio.json")) as fh:
         portfolio = json.load(fh)
     contexts = data_layer.get_context_batch([p["ticker"] for p in portfolio["positions"]])
     spy = data_layer.get_benchmark_history("SPY")
@@ -75,7 +75,7 @@ def test_effective_holdings_never_exceeds_position_count(book):
 
 # --------------------------------------------------------------------------
 # Benchmark-relative figures — all three come off ONE return series, so they
-# must agree. This is the guarantee INTEGRATION_CONTRACT.md §3 is written for.
+# must agree. This is the guarantee docs/INTEGRATION_CONTRACT.md §3 is written for.
 # --------------------------------------------------------------------------
 
 def test_performance_chart_and_risk_metrics_agree_exactly(book):

@@ -12,7 +12,7 @@ this module may already be imported, and the tests flip modes with
 `monkeypatch.setenv`; resolving once at import would ignore both and give you a
 mode that silently depends on import order.
 
-Contract B (frozen — see INTEGRATION_CONTRACT.md §1). Keys are always present,
+Contract B (frozen — see docs/INTEGRATION_CONTRACT.md §1). Keys are always present,
 None when a value is genuinely missing, never omitted:
 
     ticker, company_name, sector, sector_etf,
@@ -74,7 +74,7 @@ def get_context_batch(tickers: list) -> dict:
 def get_benchmark_history(symbol: str = "SPY") -> pd.DataFrame:
     """1y OHLCV for a benchmark or sector ETF.
 
-    THE single source for benchmark data (INTEGRATION_CONTRACT.md §3): the
+    THE single source for benchmark data (docs/INTEGRATION_CONTRACT.md §3): the
     dashboard's beta/risk/performance and the factor model both come through
     here, so their numbers are guaranteed to reconcile against the same series.
     """

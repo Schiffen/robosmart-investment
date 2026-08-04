@@ -35,7 +35,7 @@ if _ROOT not in sys.path:
 from agents import llm
 
 _PROMPT_DIR = os.path.join(os.path.dirname(__file__), "..", "prompts")
-_MOCK_PATH = os.path.join(os.path.dirname(__file__), "..", "mock_debate.json")
+_MOCK_PATH = os.path.join(os.path.dirname(__file__), "..", "fixtures", "mock_debate.json")
 
 
 # --------------------------------------------------------------------------

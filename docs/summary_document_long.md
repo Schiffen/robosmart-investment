@@ -285,14 +285,14 @@ book), an **average pairwise correlation of 0.05**, **6.1 effective holdings out
 in the book — the diversifier doing its job. *(Live figures move daily; these are
 recorded on the date above so the reader can reconcile them against the screenshots.)*
 
-![Portfolio Dashboard](screenshot_dashboard.png)
+![Portfolio Dashboard](screenshots/dashboard.png)
 
 **Bull vs Bear.** The user picks a holding and watches a five-round debate stream
 in. The Bull and Bear each open with number-cited arguments; across rounds the
 Bear presses without ever conceding; the Judge closes with a verdict — possibly
 "inconclusive" — and its three falsifiers.
 
-![Bull vs Bear](screenshot_debate.png)
+![Bull vs Bear](screenshots/debate.png)
 
 **What Happened Today.** The user selects a holding and a day, and the tab shows
 the factor decomposition of that day's move into market, sector, and
@@ -300,7 +300,7 @@ idiosyncratic components with the model's R², followed by the language model's
 explanation of *only* the idiosyncratic residual — or an explicit "no clear cause
 found." (The worked NVDA figures are in §3.1.)
 
-![What Happened Today](screenshot_attribution.png)
+![What Happened Today](screenshots/attribution.png)
 
 ---
 

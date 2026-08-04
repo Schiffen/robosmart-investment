@@ -592,9 +592,11 @@ def diversification_score(weights: dict) -> dict:
 
 if __name__ == "__main__":
     import json
+    import os
     import data_layer  # local mock stand-in
 
-    portfolio = json.load(open("mock_portfolio.json"))
+    portfolio = json.load(open(
+        os.path.join(os.path.dirname(__file__), "fixtures", "mock_portfolio.json")))
     tickers = [p["ticker"] for p in portfolio["positions"]]
     contexts = data_layer.get_context_batch(tickers)
 

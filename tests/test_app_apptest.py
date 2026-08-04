@@ -244,8 +244,8 @@ def test_no_test_asserts_on_the_real_api_key():
     """Guard the guard: keep credential values out of assertion diffs forever."""
     import pathlib
     # Split so this line cannot match its own pattern — the first version of
-    # this test failed by flagging itself, the same way DEPLOY.md's secret-scan
-    # command matches the grep inside DEPLOY.md.
+    # this test failed by flagging itself, the same way docs/DEPLOY.md's secret-scan
+    # command matches the grep inside docs/DEPLOY.md.
     needle = "ANTHROPIC_" + "API_KEY"
     offenders = []
     for path in pathlib.Path(BASE, "tests").glob("*.py"):
@@ -537,7 +537,7 @@ def test_a_drafted_book_is_marked_as_drafted_when_committed(monkeypatch):
 
 
 def test_a_recorded_draft_says_so_on_screen(monkeypatch):
-    """PRODUCT.md principle 4: recorded output must never look live."""
+    """docs/PRODUCT.md principle 4: recorded output must never look live."""
     at = _open_builder(monkeypatch, builder_answers=dict(ANSWERS_CAUTIOUS))
     _btn(at, "Draft a book from this").click().run()
 

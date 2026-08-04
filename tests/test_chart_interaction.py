@@ -32,7 +32,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _book():
-    port = json.load(open(os.path.join(BASE, "mock_portfolio.json")))
+    port = json.load(open(os.path.join(BASE, "fixtures", "mock_portfolio.json")))
     tickers = [p["ticker"] for p in port["positions"]]
     ctx = data_layer.get_context_batch(tickers)
     df = pm.position_values(port, ctx)
@@ -275,7 +275,7 @@ def test_range_bounds_on_a_real_yfinance_index():
 @pytest.mark.live
 def test_every_preset_yields_a_finite_window_on_live_data():
     """The full builder path, on live prices rather than recorded ones."""
-    port = json.load(open(os.path.join(BASE, "mock_portfolio.json")))
+    port = json.load(open(os.path.join(BASE, "fixtures", "mock_portfolio.json")))
     tickers = [p["ticker"] for p in port["positions"]]
     ctx = data_layer.get_context_batch(tickers)
     df = pm.position_values(port, ctx)

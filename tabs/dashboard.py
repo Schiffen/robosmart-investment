@@ -588,7 +588,7 @@ def render(portfolio: dict) -> None:
         # sentence directly above; these four got a (?) tooltip each, which is
         # hover-only and gone on touch. The inconsistency taught the beginner
         # that some numbers on this page are for her and some are not.
-        # PRODUCT.md principle 5: explain to the beginner, let the evaluator
+        # docs/PRODUCT.md principle 5: explain to the beginner, let the evaluator
         # drill down — one surface, two depths.
         bits = []
         if np.isfinite(rm["port_vol"]):

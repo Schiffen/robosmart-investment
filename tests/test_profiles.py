@@ -89,7 +89,7 @@ def test_balanced_growth_mirrors_the_test_fixture():
     the tests use one and the UI shows the other."""
     import json
     with open(os.path.join(os.path.dirname(profiles.PROFILE_DIR),
-                           "mock_portfolio.json")) as fh:
+                           "fixtures", "mock_portfolio.json")) as fh:
         fixture = json.load(fh)
     assert profiles.load_portfolio("balanced_growth") == fixture
 

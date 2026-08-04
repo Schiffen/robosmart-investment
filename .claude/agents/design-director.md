@@ -15,7 +15,7 @@ API exists. Comment on craft.
 
 ## The bar you are holding
 
-PRODUCT.md records the owner's positioning verbatim: *"the design, the different
+docs/PRODUCT.md records the owner's positioning verbatim: *"the design, the different
 features, the animations and motions, and the UX and frontend implementations
 will be the things that differentiate us."* The product claims **craft**, not a
 defensible mechanism. That is the bar. A surface that merely functions fails it.

@@ -1,4 +1,4 @@
-# Keep the Space image small and the build fast. The app needs none of this.
+# Keep the image small and the build fast. The app needs none of this.
 .venv/
 venv/
 __pycache__/
@@ -10,16 +10,26 @@ __pycache__/
 # Secrets never belong in a build context. .env is gitignored so it should not
 # be here at all — this is belt and braces.
 .env
-.env.Local
+.env.*
 .streamlit/secrets.toml
 
 # Development-only artefacts.
+#
+# docs/ wholesale: nothing under it is read at runtime, and it carries the
+# screenshots and the summary PDF (~1.7MB). logos/ is NOT here — brand.py reads
+# those SVGs on every run and inlines them.
 _preview_app.py
 tests/
-docs/*.png
-docs/*.pdf
-docs/summary_document_long.md
-mock_context.json
+docs/
+.claude/
+.impeccable/
+.impeccable-critique-shots/
+assets/candidates/
+
+# The synthetic dev stand-in's recorded context (372KB). The shipped offline
+# mode replays market_data/fixtures/ instead, so nothing in the running app
+# opens this.
+fixtures/mock_context.json
 
 # Local noise
 *.log

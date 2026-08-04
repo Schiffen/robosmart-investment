@@ -308,7 +308,7 @@ def test_integration_against_the_recorded_data_layer():
     """
     import json
     import data_layer
-    port = json.load(open(os.path.join(os.path.dirname(__file__), "..", "mock_portfolio.json")))
+    port = json.load(open(os.path.join(os.path.dirname(__file__), "..", "fixtures", "mock_portfolio.json")))
     tickers = [p["ticker"] for p in port["positions"]]
     contexts = data_layer.get_context_batch(tickers)
     assert set(contexts) == set(tickers), "every demo holding must resolve offline"
