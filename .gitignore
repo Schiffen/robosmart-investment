@@ -1,7 +1,9 @@
-# Secrets — NEVER commit these
+# Secrets — NEVER commit these.
+# `.env.example` is the tracked template and must survive the wildcard below.
 .env
+.env.*
+!.env.example
 .streamlit/secrets.toml
-.env.Local
 
 # Python
 __pycache__/
@@ -23,8 +25,19 @@ st*.log
 # weight in a repo that is cloned on every Community Cloud deploy, and none of
 # it is reachable from the running app.
 assets/candidates/
+docs/brand/
 *.zip
 
-# Impeccable design-tool scratch (screenshots of a superseded design)
+# Agent / design-tool working state.
+#
+# The line here is SHARED config in, PERSONAL state out. `.claude/agents/*.md`
+# and `CLAUDE.md` are tracked on purpose: they are checked-in project
+# configuration, the same category as `.editorconfig`, and a collaborator wants
+# them. What follows is one machine's scratch — session caches, superseded
+# critiques, and the design specs of build sessions that have already landed in
+# CLAUDE.md. Ignored in the repo rather than only in a personal global ignore,
+# so a fresh clone behaves the same for everyone.
+.claude/settings.local.json
+.impeccable/
 .impeccable-critique-shots/
-.impeccable/live/
+docs/superpowers/
