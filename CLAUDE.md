@@ -42,7 +42,7 @@ No API key at all ⇒ recorded AI regardless of flags.
 ## Commands
 
 ```bash
-.venv/bin/python -m pytest                    # 305 tests, fully offline, ~6s
+.venv/bin/python -m pytest                    # 660 tests, fully offline, ~21s
 .venv/bin/python -m pytest --live             # + parity checks against real yfinance
 .venv/bin/python -m pytest --llm              # + groundedness vs the real model (spends credit)
 .venv/bin/python -m market_data.refresh       # re-record the offline fixture
@@ -69,7 +69,13 @@ reporting/document.py     the PDF: cover, tables, debate, figures
 reporting/charts.py       those figures, via matplotlib — NO browser, draws only
 reporting/panel.py        the export dialog in the header
 run_mode.py             resolves live-vs-recorded for data and LLM
-portfolio.py            CSV -> portfolio dict (Contract A)
+portfolio.py            Contract A: validate_rows / build_portfolio / from_weights
+                        + parse_portfolio, now only the CSV adapter
+book_source.py          where the book came from: profile/upload/built/drafted
+shelf.py                the curated 41-ticker universe the builder draws on
+book_spec.py            the investor questionnaire, its bounds, and the tensions
+agents/book_builder.py  drafts an example book from the questionnaire
+tabs/build.py           the full-page builder (the only new Streamlit module)
 data_layer.py           Contract-B facade; dispatches to a provider PER CALL
 market_data/live.py       yfinance (production)
 market_data/fixture.py    replay of a recorded snapshot
@@ -112,7 +118,17 @@ theme.py                shared design tokens
 9. **`simulate_trade` is pure and never mutates session state.** The agent models a
    trade; only the user applies one. A test asserts the caller's portfolio is unchanged —
    if it ever fails, "what if I sold everything?" sells everything.
-10. **All model output reaches the page through `theme.safe`/`safe_md`.** `safe` for raw
+10. **A portfolio enters `ss.portfolio` only through `portfolio.build_portfolio`.**
+   CSV, hand-built book and drafted book all pass the one validator, so a rule
+   can never hold on one path and not another. `_load(portfolio, source=...)` is
+   the single writer, and `source` is required so a new producer cannot forget
+   to say what it is.
+11. **The generator returns WEIGHTS, never shares, dollars or a cost basis** — and
+   is not merely asked not to, it is never given prices. `from_weights` derives
+   shares from the settled close. A model-authored share count would imply a
+   model-authored price, and "Invested" sits directly under a computed book
+   total.
+12. **All model output reaches the page through `theme.safe`/`safe_md`.** `safe` for raw
    HTML we control (escapes quotes, emits `$` as `&#36;`), `safe_md` for markdown prose
    (`quote=False` — escaping apostrophes breaks the entity and renders `&#x27;`).
 
@@ -126,7 +142,149 @@ theme.py                shared design tokens
 
 ## Current state
 
-**305 tests passing offline** (~6s) and **323 with `--live`**, plus
+**660 tests passing offline** (~21s), and 678 with `--live`. The suite grew from 305 with the
+builder below; the CSV boundary in particular had **zero** coverage before it.
+
+### Building a portfolio without a CSV (2026-08-04)
+
+Three ways a book now arrives instead of one: upload a CSV, type it into the builder, or
+answer a seven-item investor questionnaire and have an **example book** drafted from a
+curated shelf. A drafted book is a demonstration so a reader has something of their own to
+explore with — never a recommendation — and it lands in the editable table, not in the
+portfolio, until the reader presses the button. That human step is what keeps the feature
+on the right side of the line the analyst agent's refusal behaviour already draws.
+
+The AI layer is now **three** shapes: a fixed chain (five debate calls, one explainer), a
+tool-using agent, and a constrained generator scored against numeric bounds.
+
+**Why the questionnaire is seven items and shaped the way it is.** Researched against
+Grable & Lytton, MiFID II, and the FCA's FG11/05 — which reviewed eleven real
+risk-profiling tools and found **nine flawed**. Hence: no 1–10 risk slider (the risk each
+number stands for is undefined, so user and system do not share a meaning), no neutral rung
+on the two risk items (a non-answer scored as a mid-range attitude manufactures a moderate
+investor who does not exist), no income or net-worth questions (real capacity questions, but
+asking them would imply a suitability assessment that is explicitly not being made), and
+nothing pre-selected (a pre-selected answer is an answer the reader did not give).
+
+> One research finding corrected a premise worth not repeating: "people overstate their risk
+> tolerance in a bull market" is **not** what the evidence says. FinaMetrica's panel of
+> 341,782 responses across 2007–2012 found measured *tolerance* barely moved (SD 1.86%
+> against the S&P's 17.27%); what moves is risk *perception*. So the design does not correct
+> for a drifting trait — it anchors every risk question in concrete money-and-percent
+> magnitudes so perception has less room to move the answer.
+
+**Bounds, not vibes.** Each answer maps to a numeric bound (`equity_weight`,
+`defensive_floor`, `beta_max`, `single_stock_max`, `position_max`, `holdings`, `hhi_max`),
+and they merge by **intersection** — which *is* the "resolve stated tolerance against stated
+behaviour toward the more cautious" rule rather than a special case for it. An empty band is
+not an error; it means the answers are irreconcilable, which is a tension to surface.
+
+**Tensions are arithmetic, not opinion.** Computed in pure Python against
+`portfolio_metrics`, so each names a number the reader can go and check on the Dashboard a
+moment later. They name both sides and stop — saying which way to resolve one would be
+advice. This is FG11/05's own named good practice.
+
+#### What only a live run caught
+
+The offline suite was green through all of these. They are the argument for running the
+thing against the real model rather than trusting the tests.
+
+- **`max_tokens` caps thinking AND text together.** At 2500 roughly one live draft in three
+  came back truncated mid-object and fell through to the rule allocator; at 4096, one in
+  two. `agents/analyst.py` already used 8000 for this exact reason. At 8000: 4/4.
+- **A unit mismatch between the generator and every measurement in the app.** Allocation
+  weights summed to `100 − cash_pct`, so a holding capped at 15% of the whole book was
+  printed by the dashboard as 17.65% of the *invested* money — `portfolio_metrics` excludes
+  cash from every weight (finance assumption 1). The tension rules read that same
+  cash-excluded figure, so **the app flagged a breach against a book it had just generated**.
+  Weights are now a share of the invested money and sum to 100, cash outside them.
+- **An equity ceiling that was stated and never enforced.** "Shares: 75% to 95%" went into
+  the prompt, but `defensive_floor` for a long horizon is zero, so a live draft came back
+  100% equity and nothing caught it. The ceiling now derives a floor, once, in `constraints()`.
+- **The position cap gave up instead of doing what it could.** When the cap was
+  arithmetically unreachable — a 15% cap cannot hold over five holdings summing to 100 — the
+  guard returned the allocation *untouched*, and a live draft came out with one holding at
+  45%. It now spreads evenly, which is the allocation that minimises the largest holding, and
+  says so.
+
+#### What an adversarial review pass caught that 590 green tests did not
+
+Two reviewers (a Streamlit-mechanics one and a correctness one, deliberately
+non-overlapping) fuzzed the generator across the answer space. The offline suite was
+green throughout all of these.
+
+- **The single-share cap was enforced NOWHERE that mattered.** `_coerce` — the live-model
+  path — never applied it at all; every reference lived in the rule allocator. 62% of
+  fuzzed model books breached it, and the test that "covered" it only ever ran against the
+  allocator. A beginner answering "None" could be handed four individual company shares.
+- **Two app-authored sentences asserted arithmetic the next line undid.** "reduced the
+  single-share portion to what your experience answer allows" sat over a **100% NVDA**
+  book, because the rescale was followed by a renormalise that scaled it straight back;
+  "raised bonds and gold to the N%" sat over a book at a third of that, because the floor
+  step ended by calling the position cap. This codebase draws a hard line between a claim
+  the tests enforce and prose nobody checked — those put unchecked claims on the *checked*
+  side of it, which is worse than the model doing it, because the app controls this text.
+
+  Both were symptoms of one shape: a chain of one-shot fixups, each appending a message and
+  then having its work undone by the next. Replaced by **`_settle`** — adjust in a loop
+  because the constraints genuinely interact, then **measure the final book and report only
+  the bounds it misses.** Nothing is announced as done; success is silent. Two tests now
+  pin that in both directions: no shortfall may be reported that the book does not have,
+  and no bound may be missed without being named.
+- **"Would like included" was a whitelist, not a tilt.** A control labelled *"Leave empty
+  for no preference"* cut 41 tickers to six on one click. That was the root cause of the
+  worst output: with one category left there was often nothing to satisfy the caps *with*.
+  Inclusion now only reorders; **only exclusions narrow the shelf.**
+- **"Start over" reset the table and nothing else** — every radio stayed selected, cash
+  stayed put, and the draft button stayed enabled, because Streamlit lets a surviving
+  widget key beat `value=`/`index=`. It even *looked* right.
+- **The tension numbers described the drafted book, not the edited one** — `_measure` read
+  `builder_draft`, which is deliberately never written from the editor. Gut the table,
+  commit, and the PDF asserted a beta about a book that no longer existed. Those numbers
+  are the feature's whole claim to be checkable arithmetic; attached to the wrong book they
+  are worse than none.
+- **`except ImportError` around the builder takeover was the wrong class.** A failed import
+  is evicted from `sys.modules`, so an exception raised *by* `tabs/build.py` at import time
+  — the stale-module case this file already documents — would escape at module scope and
+  white-screen the app while the sidebar printed a reassuring "Builder unavailable".
+
+#### Two defects found by running the parser rather than reading it
+
+- `parse_portfolio("ticker,shares,cost_basis\nAAPL,,150.00")` returned `shares: NaN`. The
+  guard was `if shares <= 0`, and **`nan <= 0` is `False`** — so a NaN-share position entered
+  Contract A and `position_values` silently redistributed every other weight around it.
+- The CSV example the sidebar **printed** parsed to **$1** of cash while the template it
+  offered for **download** parsed to $5,000. Cash reads from the `shares` column. A test now
+  regexes that literal out of `app.py` and asserts what it claims.
+
+#### Also in this pass
+
+- **The stock selector moved out of the sidebar** to sit under the router, on the only two
+  views that consume it. Streamlit sweeps widget state for widgets not rendered on a run and
+  does it at *end* of run, so a keyed picker resets on the **second** view switch — a
+  one-switch test passes against the broken version. `ss.active_ticker` + `index=` and no
+  `key=` survives; `key="active_ticker"` while assigning to it is a hard
+  `StreamlitAPIException`. Gating `_active_context()` also removed a `get_context` fetch from
+  two of four views.
+- **Cash is editable** in the sidebar at any time, and editing it on a sample book keeps that
+  book's identity — measured, cash 5,000 → 500,000 moves *no* weight, so no `expect` claim
+  can be invalidated.
+- **Provenance** (`book_source.py`). `reporting/panel._book_label()` returned `None` for
+  everything that was not a sample profile, and the cover reads
+  `subject = profile_label or "Your uploaded portfolio"` — so a built or drafted book would
+  have gone out under a cover saying it was uploaded.
+- **`st.data_editor` is the same canvas grid as `st.dataframe`** and inherits the exact a11y
+  defect this repo rejected `st.dataframe` for: the a11y tree reads `.data`, never
+  `.displayData`, so `format="dollar"` paints `$513.84` and announces `513.8399999999999`.
+  With **no** `format=` the two are the same string. Also: `num_rows="dynamic"` hashes the
+  element id from the *serialized frame*, so a frame that changes value silently drops
+  pending edits — the draft is app-owned and written only by explicit actions.
+- **The shelf is 41 tickers** (was 18) with hand-authored `category` metadata, because
+  yfinance returns `sector == "Unknown"` for **every** fund on it. `refresh.demo_book_tickers()`
+  is the union of shelf and profiles, so editing the shelf can never drop a shipped book's
+  holding from the fixture.
+
+*(Historical, before the portfolio builder:)* **305 tests passing offline** (~6s) and **323 with `--live`**, plus
 model-groundedness (`--llm`). Verified end to end in all three modes, locally and on the
 deployed app — and, as of 2026-08-03, in a real browser at 1440px and at an emulated 390px
 phone, on **live market data** rather than only on the fixture.
@@ -313,7 +471,7 @@ whether a debate will be included — while you can still go and run one.
 > **silently truncating** claims/falsifiers/explanations to the first 3–4. Those caps are
 > gone; an artifact people send onward must not quietly drop analysis.
 
-**305 offline · 323 with `--live`** (was 199/209).
+**305 offline · 323 with `--live`** (was 199/209). *(Now 660 / 678.)*
 
 ### Design pass 2 — surfaces and composition (2026-08-01)
 

@@ -6,8 +6,35 @@ only by team agreement.**
 
 ## 1. Data contract (frozen field names)
 
-**Contract A — portfolio** (`parse_portfolio` → dashboard):
+**Contract A — portfolio** (`portfolio.build_portfolio` → dashboard):
 `{"positions": [{"ticker": str, "shares": float, "cost_basis": float, "sector": str}], "cash": float, "currency": "USD"}`
+
+Contract A now has **three producers** — an uploaded CSV, a book typed into the
+builder, and a book drafted from the investor questionnaire — so the rules below
+are written out rather than left implied. All three go through
+`portfolio.build_portfolio`; nothing else may construct this dict.
+
+| Rule | Detail |
+|---|---|
+| `ticker` | uppercased and stripped. A blank or `NAN` ticker is **skipped**, not an error |
+| `shares` | strictly `> 0` and finite. No short positions, no zero rows. **`nan <= 0` is `False`**, so non-finite is checked separately — a blank CSV cell used to enter Contract A as `shares: NaN` and silently redistribute every other weight |
+| `cost_basis` | `>= 0` and finite. **Per-share average cost, never a total.** "Money invested" is always derived as `shares × cost_basis` and is never stored |
+| `sector` | optional in the source; resolved by the injected `sector_for` when absent. The builder passes `shelf.sector_of`; the CSV path falls back to a network lookup |
+| duplicates | merge to a **weighted-average cost basis** — the same rule `agents.tools.simulate_trade` applies on a buy |
+| `CASH` / `$CASH` row | sets the cash balance, and the amount is read from the **`shares`** column. `CASH,5000,0` is five thousand dollars; `CASH,1,5000` is one dollar. Multiple rows accumulate; an unreadable amount leaves cash at zero rather than rejecting the file |
+| `currency` | hardcoded `"USD"`; no input path sets anything else |
+| `universe` | the builder passes `shelf.tickers()` so a book can always be priced, including offline. The CSV path passes `None` — a user's own file may name anything |
+
+**Generated books return WEIGHTS, never shares.** `portfolio.from_weights`
+derives shares from the settled close and sets `cost_basis` to that same price.
+Allocation weights are a share of the **invested** money and sum to 100; cash is
+a share of the whole book and sits outside them — the same unit
+`portfolio_metrics` uses, which excludes cash from every weight it computes.
+
+**Provenance travels with the book.** `st.session_state.portfolio_source` is a
+`book_source` record (`profile` / `upload` / `built` / `drafted`) written only by
+`app._load`, and read by the identity banner, the sidebar, the export panel, the
+PDF cover and the download filename.
 
 **Contract B — `get_context(ticker)`** (consumed by tabs 1, 2, 3): keys always
 present, `None` for missing, never omitted —
